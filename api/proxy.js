@@ -22,7 +22,8 @@ export default async function handler(req, res) {
   }
 
   // URL del script de Google Apps Script (terminada en /exec)
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJikXwP9p37vyf-c7XXmmP39p_rPbeQbMj5E-h9VXMAfJ6kwvtWPwG3urnyF2jK2z/exec";
+  // Puede configurarse mediante la variable de entorno GOOGLE_SCRIPT_URL en Vercel o directamente aquí
+  const SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzJikXwP9p37vyf-c7XXmmP39p_rPbeQbMj5E-h9VXMAfJ6kwvtWPwG3urnyF2jK2z/exec";
 
   try {
     // Asegurar que el cuerpo de la petición se envíe como cadena JSON limpia
