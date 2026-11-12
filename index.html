@@ -1,0 +1,2215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Seguimiento Cashea - BNC</title>
+  <!-- SheetJS para exportar .XLSX -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <!-- Google Fonts Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #00205B;
+      --primary-light: #1E3A8A;
+      --secondary: #009639;
+      --accent: #FE5000;
+      --bg: #F1F5F9;
+      --surface: #FFFFFF;
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --border: #CBD5E1;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); margin: 0; padding: 0; font-size: 13px; -webkit-font-smoothing: antialiased; }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #F1F5F9; }
+    ::-webkit-scrollbar-thumb { background: #94A3B8; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #64748B; }
+
+    header {
+      background: #FFFFFF;
+      color: var(--primary);
+      height: 64px;
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 10px rgba(0, 32, 91, 0.07);
+      border-bottom: 3px solid var(--accent);
+    }
+    header.admin-header {
+      background: #FFFFFF;
+      border-bottom: 3px solid var(--primary);
+    }
+    .brand { display: flex; align-items: center; gap: 16px; }
+    .brand-logos { display: flex; align-items: center; gap: 14px; }
+    .brand-logos img.logo-bnc { height: 44px; width: auto; object-fit: contain; display: block; }
+    .brand-logos .svg-cashea { height: 26px; width: auto; display: block; }
+    .brand-logos .divider { color: #CBD5E1; font-weight: 300; font-size: 1.5rem; line-height: 1; }
+    .brand-title-wrap h1 { font-size: 1.02rem; margin: 0; font-weight: 700; letter-spacing: -0.3px; color: var(--primary); }
+    
+    .badge-mode {
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-left: 6px;
+    }
+    .mode-agencia { background: #EFF6FF; color: var(--primary); border: 1px solid #BFDBFE; }
+    .mode-admin { background: var(--accent); color: white; }
+
+    .header-btns { display: flex; gap: 10px; align-items: center; }
+
+    button {
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 36px;
+    }
+    button svg { width: 15px; height: 15px; stroke-width: 2; fill: none; stroke: currentColor; flex-shrink: 0; }
+    button:hover { filter: brightness(0.96); }
+    button:active { transform: scale(0.98); }
+
+    .btn-save { background-color: var(--secondary); color: white; box-shadow: 0 2px 4px rgba(0, 150, 57, 0.2); }
+    .btn-save.has-changes { background-color: var(--accent); animation: pulse-btn 2s infinite; }
+    @keyframes pulse-btn {
+      0% { box-shadow: 0 0 0 0 rgba(254, 80, 0, 0.45); }
+      70% { box-shadow: 0 0 0 7px rgba(254, 80, 0, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(254, 80, 0, 0); }
+    }
+    .btn-outline { background-color: #F8FAFC; border-color: var(--border); color: var(--primary); }
+    .btn-outline:hover { background-color: #F1F5F9; }
+    .btn-admin-lock { background-color: var(--primary); color: white; }
+    .btn-excel { background-color: var(--secondary); color: white; }
+    .btn-add { background-color: var(--primary); color: white; }
+    
+    .btn-danger-action {
+      background: #FEE2E2; border: 1px solid #FCA5A5; color: #B91C1C;
+      padding: 3px 9px; border-radius: 5px; font-size: 0.72rem; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 4px; cursor: pointer; height: 26px;
+    }
+    .btn-danger-action:hover { background: #FECACA; }
+
+    .admin-nav {
+      background: #FFFFFF; border-bottom: 1px solid var(--border); padding: 8px 24px;
+      display: none; justify-content: space-between; align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .nav-tabs { display: flex; gap: 8px; }
+    .tab-btn {
+      background: #F8FAFC; color: var(--text-muted); padding: 6px 14px;
+      border-radius: var(--radius); font-weight: 600; font-size: 0.8rem; border: 1px solid var(--border);
+      height: 34px; display: inline-flex; align-items: center; gap: 7px;
+    }
+    .tab-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .tab-btn.active { background: var(--primary); color: #FFFFFF; border-color: var(--primary); }
+    .admin-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    main { padding: 14px 22px; width: 100%; max-width: 1640px; margin: 0 auto; }
+
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 12px;
+    }
+    .kpi-card {
+      background: var(--surface); border-radius: var(--radius); padding: 11px 13px;
+      border: 1px solid var(--border); border-left: 4px solid var(--primary);
+      cursor: pointer; transition: all 0.15s ease; display: flex; flex-direction: column; justify-content: space-between;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .kpi-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+    .kpi-card.active-kpi { border-color: var(--primary); background-color: #F8FAFC; box-shadow: 0 0 0 1.5px var(--primary); }
+    .kpi-title { font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; gap: 5px; }
+    .kpi-value { font-size: 1.3rem; font-weight: 700; color: var(--text); margin-top: 5px; display: flex; align-items: baseline; justify-content: space-between; }
+    .kpi-pct { font-size: 0.7rem; font-weight: 600; padding: 1px 6px; border-radius: 10px; background: #F1F5F9; color: #475569; }
+
+    .kpi-total { border-left-color: var(--primary); }
+    .kpi-pendiente { border-left-color: #64748B; }
+    .kpi-lista { border-left-color: var(--secondary); }
+    .kpi-gestion { border-left-color: #0284C7; }
+    .kpi-recaudos { border-left-color: var(--accent); }
+    .kpi-alerta { border-left-color: #DC2626; }
+    .kpi-hoy { border-left-color: #059669; background: linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%); }
+    .kpi-hoy.active-kpi { border-color: #059669; box-shadow: 0 0 0 1.5px #059669; }
+
+    .pulse-dot {
+      width: 7px; height: 7px; background-color: #10B981; border-radius: 50%; display: inline-block;
+      box-shadow: 0 0 0 rgba(16, 185, 129, 0.4); animation: pulse-green 2s infinite;
+    }
+    @keyframes pulse-green {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+      70% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    .toolbar {
+      background: var(--surface); padding: 10px 16px; border-radius: var(--radius); margin-bottom: 12px;
+      border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+    .location-info { display: flex; flex-direction: column; gap: 4px; }
+    .location-text { font-size: 0.84rem; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px; }
+    .location-text svg { width: 16px; height: 16px; stroke: var(--primary); fill: none; stroke-width: 2; }
+    .progress-wrap { display: flex; align-items: center; gap: 8px; font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
+    .progress-bar-bg { width: 120px; height: 6px; background: #E2E8F0; border-radius: 10px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: var(--secondary); width: 0%; transition: width 0.3s ease; }
+
+    .search-controls { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: flex-end; flex-wrap: wrap; }
+    .search-box { position: relative; width: 210px; }
+    .search-box input {
+      width: 100%; height: 34px; padding: 6px 10px 6px 30px; border: 1px solid var(--border); border-radius: var(--radius);
+      font-size: 0.78rem; outline: none; background: #F8FAFC; color: var(--text); font-weight: 500;
+    }
+    .search-box input:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 2px rgba(0,32,91,0.08); }
+    .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 13px; height: 13px; pointer-events: none; }
+    .input-left-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--primary); width: 14px; height: 14px; pointer-events: none; }
+
+    .btn-toggle-fdz {
+      background: #FFFBEB; color: #B45309; border: 1px solid #FCD34D;
+      padding: 0 11px; height: 34px; font-size: 0.75rem; font-weight: 600;
+      border-radius: var(--radius); cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-toggle-fdz svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .btn-toggle-fdz:hover { background: #FEF3C7; }
+    .btn-toggle-fdz.active { background: #D97706; color: white; border-color: #B45309; }
+
+    .btn-clear-filter { background: #F1F5F9; color: #475569; padding: 0 11px; height: 34px; font-size: 0.75rem; border: 1px solid var(--border); }
+    .btn-clear-filter:hover { background: #E2E8F0; color: #0F172A; }
+
+    .table-container {
+      background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
+      overflow-y: auto; overflow-x: hidden; max-height: calc(100vh - 225px);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th {
+      background-color: var(--primary); color: white; padding: 11px 12px; text-align: left;
+      font-size: 0.71rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0; z-index: 10;
+      border-right: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    td { padding: 10px 12px; border-bottom: 1px solid #E2E8F0; vertical-align: top; word-wrap: break-word; }
+    tr:hover { background-color: #F8FAFC; }
+    tr.fila-modificada { background-color: #FFFBEB !important; }
+
+    .empresa-title { font-weight: 700; color: #0F172A; font-size: 0.83rem; margin-bottom: 5px; line-height: 1.3; }
+    .badges-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    .rif-badge { background: #F1F5F9; color: #334155; font-family: 'Inter', monospace; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; border: 1px solid #CBD5E1; font-weight: 600; }
+    .agencia-sub { font-size: 0.7rem; font-weight: 600; color: var(--primary); background: #EFF6FF; padding: 2px 6px; border-radius: 4px; border: 1px solid #BFDBFE; }
+    .region-sub { font-size: 0.69rem; font-weight: 600; color: #047857; background: #ECFDF5; padding: 2px 6px; border-radius: 4px; border: 1px solid #A7F3D0; }
+
+    .admin-edit-agencia-box {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .input-agencia-code {
+      font-size: 0.74rem;
+      padding: 4px 6px;
+      width: 140px;
+      border: 1.5px solid var(--border);
+      border-radius: 4px;
+      font-weight: 600;
+      color: var(--primary);
+      outline: none;
+      background: #FFFFFF;
+      transition: all 0.15s ease;
+    }
+    .input-agencia-code:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(0, 32, 91, 0.1);
+    }
+    .input-agencia-code.error-code {
+      border-color: #DC2626 !important;
+      background: #FEF2F2 !important;
+    }
+
+    .checkbox-fdz-container {
+      margin-top: 7px; display: inline-flex; align-items: center; gap: 6px;
+      background: #F8FAFC; border: 1px solid #CBD5E1; padding: 3px 8px;
+      border-radius: 6px; cursor: pointer; user-select: none; transition: all 0.15s ease;
+    }
+    .checkbox-fdz-container:hover { background: #F1F5F9; border-color: #94A3B8; }
+    .checkbox-fdz-container.is-active { background: #FFFBEB; border-color: #F59E0B; box-shadow: 0 0 0 1px #F59E0B; }
+    .checkbox-fdz-container input[type="checkbox"] { width: 13px; height: 13px; cursor: pointer; accent-color: #D97706; margin: 0; }
+    .checkbox-fdz-icon { width: 12px; height: 12px; stroke: #64748B; fill: none; stroke-width: 2; flex-shrink: 0; }
+    .checkbox-fdz-container.is-active .checkbox-fdz-icon { stroke: #B45309; }
+    .checkbox-fdz-label { font-size: 0.71rem; font-weight: 600; color: #475569; cursor: pointer; }
+    .checkbox-fdz-container.is-active .checkbox-fdz-label { color: #B45309; }
+
+    .contact-box { display: flex; flex-direction: column; gap: 4px; }
+    .contact-name { font-weight: 700; color: var(--primary); font-size: 0.81rem; }
+    .phone-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .contact-pill {
+      display: inline-flex; align-items: center; gap: 4px; background: #F8FAFC;
+      border: 1px solid var(--border); padding: 2px 7px; border-radius: 4px; font-size: 0.74rem;
+      font-weight: 500; color: #334155; cursor: pointer; transition: background 0.1s;
+    }
+    .contact-pill:hover { background: #E2E8F0; }
+    .contact-pill span.email-text { word-break: break-all; color: #0284C7; font-weight: 600; }
+    
+    .btn-wa {
+      display: inline-flex; align-items: center; gap: 4px; background: #DCFCE7;
+      color: #15803D; border: 1px solid #86EFAC; padding: 2px 7px; border-radius: 4px; font-size: 0.71rem; font-weight: 700; text-decoration: none;
+    }
+    .btn-wa:hover { background: #BBF7D0; }
+    .btn-wa svg { width: 12px; height: 12px; stroke: currentColor; fill: none; }
+
+    .status-picker-container { position: relative; width: 100%; }
+    .status-badge-button {
+      width: 100%; padding: 7px 10px; border-radius: var(--radius); font-size: 0.79rem; font-weight: 600;
+      display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+      border: 1px solid transparent; transition: all 0.15s ease; user-select: none; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .status-badge-button:hover { filter: brightness(0.97); }
+    .status-badge-button.error-status-border {
+      border: 2px solid #DC2626 !important;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+    }
+    .status-badge-button svg { width: 14px; height: 14px; stroke: currentColor; flex-shrink: 0; }
+    .status-picker-dropdown {
+      position: absolute; top: 100%; left: 0; right: 0; background: #FFFFFF; border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: 0 10px 25px -4px rgba(0,0,0,0.16); z-index: 500;
+      margin-top: 4px; display: none; overflow: hidden; padding: 4px 0;
+    }
+    .status-picker-option {
+      padding: 8px 12px; font-size: 0.79rem; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; gap: 8px; transition: background 0.1s ease; color: #334155;
+    }
+    .status-picker-option:hover { background: #F1F5F9; }
+    .status-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+    .status-empty { background-color: #F8FAFC; color: #64748B; border-color: #CBD5E1; }
+    .status-lista { background-color: #DCFCE7; color: #15803D; border-color: #86EFAC; }
+    .status-gestion { background-color: #DBEAFE; color: var(--primary); border-color: #93C5FD; }
+    .status-recaudos { background-color: #FEF3C7; color: #B45309; border-color: #FCD34D; }
+    .status-alerta { background-color: #FEE2E2; color: #B91C1C; border-color: #FCA5A5; }
+
+    .dot-empty { background-color: #94A3B8; }
+    .dot-lista { background-color: #15803D; }
+    .dot-gestion { background-color: #00205B; }
+    .dot-recaudos { background-color: #D97706; }
+    .dot-alerta { background-color: #DC2626; }
+
+    input[type="date"].input-cell, textarea.input-cell {
+      width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 0.79rem; background: white; outline: none;
+    }
+    textarea.input-cell:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(0,32,91,0.08); }
+    textarea.input-cell.error-comment-border {
+      border: 2px solid #DC2626 !important;
+      background-color: #FEF2F2 !important;
+    }
+    input[type="date"].input-cell:disabled { background-color: #F1F5F9; color: #94A3B8; cursor: not-allowed; }
+    input[type="date"].input-cell:not(:disabled) { background-color: #FFFFFF; border: 1.5px solid var(--secondary); font-weight: 600; }
+    textarea.input-cell { resize: vertical; min-height: 56px; line-height: 1.4; }
+
+    .chk-planilla-box {
+      display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 0.7rem;
+      color: #475569; font-weight: 600; cursor: pointer; user-select: none;
+    }
+    .chk-planilla-box input { width: 13px; height: 13px; margin: 0; cursor: pointer; accent-color: var(--secondary); }
+    .chk-planilla-box:hover { color: var(--primary); }
+
+    .hubspot-trace { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; font-size: 0.68rem; }
+    .hs-badge {
+      display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px;
+      border-radius: 4px; font-weight: 600; width: fit-content; letter-spacing: 0.2px;
+    }
+    .hs-por-actualizar { background: #FFF7ED; color: #C2410C; border: 1px solid #FDBA74; }
+    .hs-actualizado { background: #F0FDF4; color: #15803D; border: 1px solid #86EFAC; }
+    .hs-avanzado { background: #EFF6FF; color: #1D4ED8; border: 1px solid #93C5FD; }
+    .hs-no-existe { background: #FEF2F2; color: #B91C1C; border: 1px solid #FCA5A5; }
+    .hs-sin-estado { background: #F8FAFC; color: #94A3B8; border: 1px dashed #CBD5E1; }
+    .hs-fecha { color: #64748B; font-size: 0.65rem; padding-left: 2px; }
+
+    .audit-pill {
+      margin-top: 4px; display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 7px; border-radius: 4px; font-size: 0.68rem; font-weight: 600; width: fit-content;
+    }
+    .audit-pill svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.2; flex-shrink: 0; }
+    .audit-hoy { background: #ECFDF5; color: #047857; border: 1px solid #6EE7B7; }
+    .audit-reciente { background: #F0F9FF; color: #0369A1; border: 1px solid #BAE6FD; }
+    .audit-sin { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
+
+    .act-badge {
+      display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px;
+      border-radius: 12px; font-size: 0.7rem; font-weight: 700;
+    }
+    .act-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .act-verde { background: #DCFCE7; color: #15803D; border: 1px solid #86EFAC; }
+    .act-verde .act-dot { background: #15803D; }
+    .act-amarillo { background: #FEF3C7; color: #B45309; border: 1px solid #FCD34D; }
+    .act-amarillo .act-dot { background: #D97706; }
+    .act-rojo { background: #FEE2E2; color: #B91C1C; border: 1px solid #FCA5A5; }
+    .act-rojo .act-dot { background: #DC2626; }
+
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px);
+      display: flex; justify-content: center; align-items: center; z-index: 1000;
+    }
+    .modal-card {
+      background: white; padding: 28px; border-radius: 14px; width: 92%; max-width: 520px;
+      box-shadow: 0 25px 40px -10px rgba(0, 0, 0, 0.2); max-height: 90vh; overflow-y: auto;
+    }
+    .modal-card h2 { margin: 0 0 18px 0; color: var(--primary); font-size: 1.22rem; font-weight: 700; letter-spacing: -0.3px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 0.81rem; font-weight: 600; margin-bottom: 6px; color: #334155; }
+
+    .custom-combobox-container { position: relative; width: 100%; }
+    .combobox-input {
+      width: 100%; padding: 9px 32px 9px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+      font-size: 0.82rem; outline: none; background: #FFFFFF; font-weight: 500; color: var(--text);
+      transition: all 0.15s ease;
+    }
+    .toolbar .combobox-input { height: 34px; padding: 5px 28px 5px 10px; font-size: 0.76rem; font-weight: 600; background: #F8FAFC; }
+    .toolbar .combobox-input.with-left-icon { padding-left: 28px; }
+    .combobox-input:focus { border-color: var(--primary); background: #FFFFFF; box-shadow: 0 0 0 2px rgba(0,32,91,0.08); }
+    .combobox-chevron {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      pointer-events: none; color: #64748B; width: 14px; height: 14px;
+    }
+    .combobox-dropdown {
+      position: absolute; top: 100%; left: 0; right: 0; max-height: 230px; overflow-y: auto;
+      background: white; border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: 0 12px 24px -4px rgba(0,0,0,0.14); z-index: 1050; display: none; margin-top: 5px;
+    }
+    .combobox-option {
+      padding: 9px 12px; font-size: 0.79rem; color: var(--text); cursor: pointer;
+      border-bottom: 1px solid #F1F5F9; font-weight: 500; display: flex; align-items: center; gap: 8px;
+    }
+    .combobox-option svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; color: #64748B; }
+    .combobox-option:hover { background: #EFF6FF; color: var(--primary); font-weight: 600; }
+    .combobox-option:hover svg { color: var(--primary); }
+
+    .checkbox-list {
+      border: 1px solid var(--border); border-radius: var(--radius); padding: 10px;
+      max-height: 170px; overflow-y: auto; background: #F8FAFC; display: flex; flex-direction: column; gap: 8px;
+    }
+    .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 0.83rem; font-weight: 500; color: #334155; cursor: pointer; }
+    .checkbox-item input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+    .modal-divider { margin: 18px 0 6px 0; border-top: 1px solid #E2E8F0; padding-top: 14px; text-align: center; }
+
+    #toast {
+      position: fixed; bottom: 20px; right: 20px; background: var(--primary); color: white;
+      padding: 11px 18px; border-radius: var(--radius); display: none; align-items: center; gap: 8px;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.22); font-size: 0.81rem; font-weight: 600; z-index: 2000;
+      border-left: 4px solid var(--accent);
+    }
+    #toast svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.2; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+  <!-- MODAL DE ALERTA INSTITUCIONAL EN PANTALLA -->
+  <div id="modalAlertaApp" class="modal-overlay" style="display: none; z-index: 3000;">
+    <div class="modal-card" style="max-width: 440px; border-top: 5px solid var(--accent); padding: 24px;">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+        <div style="background: #FFF7ED; border: 1px solid #FFEDD5; border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; stroke: var(--accent); fill: none; stroke-width: 2;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        </div>
+        <div>
+          <h3 id="modalAlertaTitulo" style="margin: 0; color: var(--primary); font-size: 1.05rem; font-weight: 700;">Validación Requerida</h3>
+          <span style="font-size: 0.74rem; color: var(--text-muted);">Seguimiento Cashea - BNC</span>
+        </div>
+      </div>
+      <p id="modalAlertaMensaje" style="color: #334155; font-size: 0.88rem; line-height: 1.5; margin: 0 0 20px 0;"></p>
+      <div style="display: flex; justify-content: flex-end;">
+        <button id="btnAceptarAlertaApp" class="btn-save" style="padding: 9px 24px; font-size: 0.84rem; justify-content: center; min-width: 110px;" onclick="cerrarAlertaModal()">
+          Entendido
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 1: Selector Inicial -->
+  <div id="selectorModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <h2>Consulta de Cartera Cashea</h2>
+      
+      <div class="form-group">
+        <label>1. Seleccione la Región:</label>
+        <div class="custom-combobox-container">
+          <input type="text" id="inputBusquedaRegion" class="combobox-input" placeholder="Haga clic o escriba para buscar región..." autocomplete="off" onfocus="abrirDropdown('region')" oninput="filtrarDropdown('region')">
+          <svg class="combobox-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          <div id="dropdownRegion" class="combobox-dropdown"></div>
+        </div>
+        <input type="hidden" id="regionSeleccionadaVal" value="">
+      </div>
+
+      <div class="form-group">
+        <label>2. Buscar / Seleccionar Agencia:</label>
+        <div class="custom-combobox-container">
+          <input type="text" id="inputBusquedaAgencia" class="combobox-input" placeholder="Primero elija una región..." autocomplete="off" onfocus="abrirDropdown('agencia')" oninput="filtrarDropdown('agencia')" disabled>
+          <svg class="combobox-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          <div id="dropdownAgencia" class="combobox-dropdown"></div>
+        </div>
+        <input type="hidden" id="agenciaSeleccionadaVal" value="">
+      </div>
+
+      <button class="btn-save" style="width: 100%; justify-content: center; height: 42px; margin-top: 8px; font-size: 0.88rem;" onclick="aplicarFiltroAgencia()">
+        Entrar al Portal
+      </button>
+      
+      <div class="modal-divider">
+        <button class="btn-admin-lock" style="width: 100%; justify-content: center; background-color: var(--primary); color: white; height: 40px;" onclick="abrirModalPin()">
+          <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          Acceso Coordinadores / Supervisores
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: PIN Admin -->
+  <div id="adminAccessModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <h2>Consola de Supervisión Regional</h2>
+      <div id="seccionPin">
+        <p style="color: var(--text-muted); font-size: 0.81rem; margin-bottom: 12px;">Ingrese el PIN de seguridad:</p>
+        <div class="form-group">
+          <input type="password" id="inputPin" class="combobox-input" placeholder="••••" style="font-size: 1.2rem; text-align: center; letter-spacing: 6px; font-weight: 700;" onkeyup="if(event.key==='Enter') validarPin()">
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-clear-filter" style="flex: 1; justify-content: center;" onclick="cerrarModalAdmin()">Cancelar</button>
+          <button class="btn-save" style="flex: 2; justify-content: center;" onclick="validarPin()">Verificar PIN</button>
+        </div>
+      </div>
+      <div id="seccionRegionesAdmin" style="display: none;">
+        <p style="color: var(--text-muted); font-size: 0.81rem; margin-bottom: 8px;">Seleccione las regiones a supervisar:</p>
+        <div class="form-group">
+          <label class="checkbox-item" style="margin-bottom: 6px; color: var(--primary); font-weight: 700;">
+            <input type="checkbox" id="chkTodasRegiones" checked onchange="toggleTodasRegionesAdmin(this.checked)"> -- Seleccionar Todas las Regiones --
+          </label>
+          <div id="listaCheckboxesRegiones" class="checkbox-list"></div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-clear-filter" style="flex: 1; justify-content: center;" onclick="cerrarModalAdmin()">Cerrar</button>
+          <button class="btn-save" style="flex: 2; justify-content: center;" onclick="cargarPanelAdministrador()">Cargar Consola</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Nuevo Cliente -->
+  <div id="nuevoClienteModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <h2>Registrar Nuevo Cliente Cashea</h2>
+      <div class="form-group"><label>Empresa *</label><input type="text" id="nc_empresa" class="combobox-input" placeholder="Nombre de la empresa"></div>
+      <div class="form-group"><label>RIF *</label><input type="text" id="nc_rif" class="combobox-input" placeholder="Ej: J-123456789"></div>
+      <div class="form-group"><label>Región *</label><input type="text" id="nc_region" class="combobox-input" placeholder="Región BNC"></div>
+      <div class="form-group"><label>Agencia *</label><input type="text" id="nc_agencia" class="combobox-input" placeholder="Agencia asignada"></div>
+      <div style="display: flex; gap: 8px; margin-top: 14px;">
+        <button class="btn-clear-filter" style="flex: 1; justify-content: center;" onclick="document.getElementById('nuevoClienteModal').style.display='none'">Cancelar</button>
+        <button class="btn-save" style="flex: 2; justify-content: center;" onclick="guardarNuevoCliente()">Guardar Cliente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: Eliminar -->
+  <div id="confirmDeleteModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="border-top: 4px solid #DC2626; max-width: 440px;">
+      <h2 style="color: #B91C1C;">Confirmar Baja de Cliente</h2>
+      <p id="deleteMensaje" style="font-size: 0.88rem; line-height: 1.5; color: #334155;"></p>
+      <div style="display: flex; gap: 8px; margin-top: 16px;">
+        <button class="btn-clear-filter" style="flex: 1; justify-content: center;" onclick="document.getElementById('confirmDeleteModal').style.display='none'">Cancelar</button>
+        <button class="btn-save" id="btnConfirmarBajaModal" style="flex: 1.5; background-color: #DC2626; justify-content: center;" onclick="ejecutarEliminacionConfirmada()">Confirmar Baja</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CABECERA INSTITUCIONAL -->
+  <header id="mainHeader">
+    <div class="brand">
+      <div class="brand-logos">
+        <img class="logo-bnc" src="https://lh3.googleusercontent.com/d/1HjtScLBGO0UnE7c0oQnr1o3zXjhfpHSU=s600" alt="Logo BNC" onerror="this.style.display='none'">
+        <span class="divider">|</span>
+        <svg class="svg-cashea" viewBox="0 0 460 120" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="5" width="110" height="110" rx="36" fill="#FDE047"/>
+          <path d="M 68 34 C 48 34 35 48 35 60 C 35 72 48 86 68 86 C 81 86 89 80 92 73 L 77 65 C 75 69 72 71 68 71 C 58 71 52 64 52 60 C 52 56 58 49 68 49 C 72 49 75 51 77 55 L 92 47 C 89 40 81 34 68 34 Z" fill="#18181B"/>
+          <text x="135" y="80" font-family="'Inter', system-ui, sans-serif" font-size="70" font-weight="700" fill="#18181B" letter-spacing="-2.5">cashea</text>
+        </svg>
+      </div>
+      <div class="brand-title-wrap">
+        <h1>V.P.E. Banca Comercial | Seguimiento Cashea</h1>
+      </div>
+      <span id="badgeModo" class="badge-mode mode-agencia">Vista Agencia</span>
+    </div>
+    <div class="header-btns">
+      <button id="btnAccesoAdminTop" class="btn-admin-lock" onclick="abrirModalPin()">
+        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        Modo Supervisor
+      </button>
+      <button class="btn-outline" onclick="abrirSelectorSegunModo()">
+        <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+        Cambiar Agencia
+      </button>
+      <button id="btnGuardar" class="btn-save" onclick="guardarTodo()">
+        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+        Guardar Cambios
+      </button>
+    </div>
+  </header>
+
+  <!-- SUB-BARRA ADMIN / SUPERVISOR CON ICONOS SVG -->
+  <div id="adminNavBar" class="admin-nav">
+    <div class="nav-tabs">
+      <button id="tabBtnCartera" class="tab-btn active" onclick="cambiarPestanaAdmin('CARTERA')">
+        <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+        Gestión y Auditoría de Cartera
+      </button>
+      <button id="tabBtnRadiografia" class="tab-btn" onclick="cambiarPestanaAdmin('RADIOGRAFIA')">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        Radiografía y Actividad por Agencia
+      </button>
+    </div>
+    <div class="admin-tools">
+      <button class="btn-add" onclick="abrirModalNuevoCliente()">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Agregar Cliente
+      </button>
+      <button class="btn-excel" onclick="exportarExcel('VISTA')">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Exportar Vista (.XLSX)
+      </button>
+      <button class="btn-excel" style="background-color: var(--primary);" onclick="exportarExcel('COMPLETA')">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+        Descargar BD Maestra
+      </button>
+      <button class="btn-clear-filter" onclick="salirModoAdmin()">Salir Modo Admin</button>
+    </div>
+  </div>
+
+  <!-- CUERPO PRINCIPAL -->
+  <main>
+    <div class="kpi-grid">
+      <div class="kpi-card kpi-total active-kpi" id="kpi_TODOS" onclick="filtrarDesdeKPI('TODOS')">
+        <span class="kpi-title">Total Cartera</span>
+        <div class="kpi-value"><span id="val_total">0</span> <span class="kpi-pct">100%</span></div>
+      </div>
+      <div class="kpi-card kpi-pendiente" id="kpi_SIN_GESTION" onclick="filtrarDesdeKPI('SIN_GESTION')">
+        <span class="kpi-title">Sin Gestionar</span>
+        <div class="kpi-value"><span id="val_pendientes">0</span> <span class="kpi-pct" id="pct_pendientes">0%</span></div>
+      </div>
+      <div class="kpi-card kpi-lista" id="kpi_Lista" onclick="filtrarDesdeKPI('Lista')">
+        <span class="kpi-title">Listas</span>
+        <div class="kpi-value"><span id="val_lista">0</span> <span class="kpi-pct" id="pct_lista">0%</span></div>
+      </div>
+      <div class="kpi-card kpi-gestion" id="kpi_Gestión de Contacto" onclick="filtrarDesdeKPI('Gestión de Contacto')">
+        <span class="kpi-title">En Gestión</span>
+        <div class="kpi-value"><span id="val_gestion">0</span> <span class="kpi-pct" id="pct_gestion">0%</span></div>
+      </div>
+      <div class="kpi-card kpi-recaudos" id="kpi_Faltan Recaudos" onclick="filtrarDesdeKPI('Faltan Recaudos')">
+        <span class="kpi-title">Faltan Recaudos</span>
+        <div class="kpi-value"><span id="val_recaudos">0</span> <span class="kpi-pct" id="pct_recaudos">0%</span></div>
+      </div>
+      <div class="kpi-card kpi-alerta" id="kpi_ALERTA" onclick="filtrarDesdeKPI('ALERTA')">
+        <span class="kpi-title">No Proc. / Iloc.</span>
+        <div class="kpi-value"><span id="val_alerta">0</span> <span class="kpi-pct" id="pct_alerta">0%</span></div>
+      </div>
+      <div class="kpi-card kpi-hoy" id="kpi_HOY" onclick="filtrarDesdeKPI('HOY')" title="Haga clic para ver únicamente los clientes actualizados el día de hoy">
+        <span class="kpi-title"><span class="pulse-dot"></span> Actualizados Hoy</span>
+        <div class="kpi-value"><span id="val_hoy" style="color:#047857;">0</span> <span class="kpi-pct" id="pct_hoy" style="background:#DCFCE7;color:#047857;">0%</span></div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN CARTERA -->
+    <div id="vistaCarteraContainer">
+      <div class="toolbar">
+        <div class="location-info">
+          <span id="filtroActualTexto" class="location-text">Cargando su espacio de trabajo...</span>
+          <div class="progress-wrap">
+            <span>Avance de Gestión: <strong id="textoAvance">0%</strong></span>
+            <div class="progress-bar-bg"><div id="barraAvance" class="progress-bar-fill"></div></div>
+          </div>
+        </div>
+
+        <div class="search-controls">
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="inputBusqueda" placeholder="Buscar empresa, RIF o contacto..." oninput="ejecutarFiltrosLocales()">
+          </div>
+
+          <div class="custom-combobox-container" style="width: 195px;">
+            <svg class="input-left-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <input type="text" id="inputFiltroActividad" class="combobox-input with-left-icon" value="Toda la Actividad" autocomplete="off" readonly onclick="abrirDropdown('actividad')" style="cursor: pointer; border-color: #93C5FD; color: var(--primary);">
+            <svg class="combobox-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            <div id="dropdownActividad" class="combobox-dropdown"></div>
+            <input type="hidden" id="valFiltroActividad" value="TODAS">
+          </div>
+
+          <button type="button" id="btnFiltroFueraZona" class="btn-toggle-fdz" onclick="toggleFiltroFueraDeZona()">
+            <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            Fuera de Zona (<span id="conteoFueraZona">0</span>)
+          </button>
+
+          <div class="custom-combobox-container" id="containerFiltroAgenciaAdmin" style="display: none; width: 185px;">
+            <input type="text" id="inputFiltroAgenciaAdmin" class="combobox-input" placeholder="Filtrar agencia..." autocomplete="off" onfocus="abrirDropdown('filtroAgencia')" oninput="filtrarDropdown('filtroAgencia')">
+            <svg class="combobox-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            <div id="dropdownFiltroAgencia" class="combobox-dropdown"></div>
+            <input type="hidden" id="valFiltroAgenciaAdmin" value="TODAS">
+          </div>
+
+          <div class="custom-combobox-container" style="width: 155px;">
+            <input type="text" id="inputFiltroEstatus" class="combobox-input" value="Todos los Estatus" autocomplete="off" readonly onclick="abrirDropdown('estatus')" style="cursor: pointer;">
+            <svg class="combobox-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            <div id="dropdownEstatus" class="combobox-dropdown"></div>
+            <input type="hidden" id="valFiltroEstatus" value="TODOS">
+          </div>
+
+          <button class="btn-clear-filter" onclick="limpiarFiltrosLocales()">Limpiar</button>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 22%;">Empresa / RIF / Agencia</th>
+              <th style="width: 21%;">Contacto y Auditoría Agencia</th>
+              <th style="width: 16%;">Estatus / Sincronía HubSpot</th>
+              <th style="width: 14%;">Fecha Envío Planillas</th>
+              <th style="width: 27%;">Comentarios u Observaciones</th>
+            </tr>
+          </thead>
+          <tbody id="tablaBody">
+            <tr><td colspan="5" style="text-align: center; padding: 45px; color: var(--text-muted);">Cargando registros...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SECCIÓN RADIOGRAFÍA -->
+    <div id="vistaRadiografiaContainer" style="display: none;">
+      <div class="toolbar">
+        <span class="location-text">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          Semáforo de Cumplimiento y Auditoría de Conexión por Agencia BNC
+        </span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Permite detectar qué agencias están actualizando su cartera activamente</span>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 19%;">Agencia BNC</th>
+              <th style="width: 13%;">Región</th>
+              <th style="width: 6%; text-align: center;">Total</th>
+              <th style="width: 8%; text-align: center;">Sin Gestión</th>
+              <th style="width: 7%; text-align: center;">Listas</th>
+              <th style="width: 7%; text-align: center;">En Gestión</th>
+              <th style="width: 7%; text-align: center;">Recaudos</th>
+              <th style="width: 12%;">% Avance Cartera</th>
+              <th style="width: 13%; text-align: center;">Estado de Actividad</th>
+              <th style="width: 8%; text-align: center;">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tablaRadiografiaBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    // Conector automático Vercel / Google Apps Script
+    if (typeof google === "undefined" || !google.script) {
+      window.google = {
+        script: {
+          run: (function() {
+            function crearRunner(successHandler, failureHandler) {
+              return new Proxy({}, {
+                get: function(_, prop) {
+                  if (prop === "withSuccessHandler") {
+                    return function(fn) { return crearRunner(fn, failureHandler); };
+                  }
+                  if (prop === "withFailureHandler") {
+                    return function(fn) { return crearRunner(successHandler, fn); };
+                  }
+                  return function(...args) {
+                    fetch("/api/proxy", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        accion: "webapp_rpc",
+                        funcion: prop,
+                        argumentos: args
+                      })
+                    })
+                    .then(async r => {
+                      const text = await r.text();
+                      let res;
+                      try {
+                        res = JSON.parse(text);
+                      } catch (e) {
+                        throw new Error("Respuesta inválida del servidor (" + r.status + "): " + (text.substring(0, 100) || r.statusText));
+                      }
+                      if (!r.ok || res.status !== "success") {
+                        throw new Error(res.mensaje || "Error en el servidor (" + r.status + ")");
+                      }
+                      return res;
+                    })
+                    .then(res => {
+                      if (successHandler) successHandler(res.data);
+                    })
+                    .catch(err => {
+                      if (failureHandler) failureHandler(err);
+                    });
+                  };
+                }
+              });
+            }
+            return crearRunner(null, null);
+          })()
+        }
+      };
+    }
+
+    let catalogo = {};
+    let catalogoMaestroAgencias = [];
+    let clientesCargados = [];
+    let esModoAdmin = false;
+    let regionesAdminSeleccionadas = [];
+    let pestanaAdminActual = "CARTERA";
+    let listaRegiones = [];
+    let listaAgenciasActualesRegion = [];
+    let clienteEliminarPendiente = null;
+    let soloFueraDeZonaActivo = false;
+    let callbackFocoAlerta = null;
+
+    const KEY_STORAGE_SESION = "cashea_sesion_v2";
+
+    const SVG_ICONS = {
+      pin: `<svg class="checkbox-fdz-icon" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`,
+      clock: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`,
+      bolt: `<svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`,
+      calendar: `<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`,
+      check: `<svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`,
+      alert: `<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+      copy: `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`,
+      trash: `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`
+    };
+
+    const LISTA_ESTATUS_CONFIG = [
+      { valor: "", label: "-- Seleccione --", clase: "status-empty", dot: "dot-empty" },
+      { valor: "Lista", label: "Lista", clase: "status-lista", dot: "dot-lista" },
+      { valor: "Gestión de Contacto", label: "Gestión de Contacto", clase: "status-gestion", dot: "dot-gestion" },
+      { valor: "Faltan Recaudos", label: "Faltan Recaudos", clase: "status-recaudos", dot: "dot-recaudos" },
+      { valor: "No Procede", label: "No Procede", clase: "status-alerta", dot: "dot-alerta" },
+      { valor: "Ilocalizable", label: "Ilocalizable", clase: "status-alerta", dot: "dot-alerta" }
+    ];
+
+    function guardarSesionNavegador(datosSesion) {
+      const str = JSON.stringify(datosSesion);
+      try { localStorage.setItem(KEY_STORAGE_SESION, str); } catch (e) {}
+      try { sessionStorage.setItem(KEY_STORAGE_SESION, str); } catch (e) {}
+    }
+
+    function leerSesionNavegador() {
+      let str = null;
+      try { str = localStorage.getItem(KEY_STORAGE_SESION); } catch (e) {}
+      if (!str) {
+        try { str = sessionStorage.getItem(KEY_STORAGE_SESION); } catch (e) {}
+      }
+      if (!str) return null;
+      try { return JSON.parse(str); } catch (e) { return null; }
+    }
+
+    function limpiarSesionNavegador() {
+      try { localStorage.removeItem(KEY_STORAGE_SESION); } catch (e) {}
+      try { sessionStorage.removeItem(KEY_STORAGE_SESION); } catch (e) {}
+    }
+
+    window.onload = function() {
+      iniciarAplicacionUnificada();
+
+      document.addEventListener("click", function(e) {
+        if (!e.target.closest('.custom-combobox-container') && !e.target.closest('.status-picker-container')) {
+          document.querySelectorAll('.combobox-dropdown').forEach(d => d.style.display = 'none');
+          document.querySelectorAll('.status-picker-dropdown').forEach(d => d.style.display = 'none');
+        }
+      });
+
+      document.addEventListener("keydown", function(e) {
+        if (e.key === "Escape" || e.key === "Enter") {
+          const modalAlerta = document.getElementById("modalAlertaApp");
+          if (modalAlerta && modalAlerta.style.display === "flex") {
+            cerrarAlertaModal();
+          }
+        }
+      });
+    };
+
+    function iniciarAplicacionUnificada() {
+      const sesion = leerSesionNavegador();
+
+      if (sesion && (sesion.modo === "ADMIN" || sesion.modo === "AGENCIA")) {
+        esModoAdmin = (sesion.modo === "ADMIN");
+        configurarInterfazPorModo();
+        document.getElementById("selectorModal").style.display = "none";
+        mostrarToast("Restaurando su vista activa...", "clock");
+      }
+
+      google.script.run
+        .withFailureHandler(err => {
+          ocultarToast();
+          document.getElementById("selectorModal").style.display = "flex";
+          mostrarAlertaModal("Error cargando datos iniciales: " + err.message, "Error de Conexión");
+        })
+        .withSuccessHandler(function(paquete) {
+          catalogo = paquete.catalogo || {};
+          catalogoMaestroAgencias = paquete.catalogoMaestro || [];
+          listaRegiones = Object.keys(catalogo).sort();
+
+          const listaChk = document.getElementById("listaCheckboxesRegiones");
+          listaChk.innerHTML = "";
+          listaRegiones.forEach(reg => {
+            const lbl = document.createElement("label");
+            lbl.className = "checkbox-item";
+            lbl.innerHTML = `<input type="checkbox" class="chk-region-admin" value="${reg}" checked onchange="verificarEstadoChkTodas()"> ${reg}`;
+            listaChk.appendChild(lbl);
+          });
+
+          if (paquete.clientes && sesion) {
+            if (sesion.modo === "ADMIN") {
+              regionesAdminSeleccionadas = sesion.regiones || ["TODAS"];
+              const etiqueta = regionesAdminSeleccionadas.includes("TODAS") ? "TODAS LAS REGIONES" : regionesAdminSeleccionadas.join(", ");
+              procesarDatosRecibidos(paquete.clientes, `CONSOLA SUPERVISOR | Regiones: ${etiqueta}`);
+              renderizarRadiografiaAgencias();
+              if (sesion.pestana === "RADIOGRAFIA") {
+                cambiarPestanaAdmin("RADIOGRAFIA");
+              }
+            } else {
+              procesarDatosRecibidos(paquete.clientes, `Región: ${sesion.region}  |  Agencia: ${sesion.agencia}`);
+            }
+          } else {
+            ocultarToast();
+            document.getElementById("selectorModal").style.display = "flex";
+          }
+        }).obtenerPaqueteInicial(sesion);
+    }
+
+    function formatearMiles(numero) {
+      const num = Number(numero) || 0;
+      return num.toLocaleString('es-VE');
+    }
+
+    function extraerTextoBaseSinEtiquetas(texto) {
+      return String(texto || "")
+        .replace(/\[FUERA DE ZONA\]/gi, "")
+        .replace(/\[CUENTA APERTURADA - PLANILLA PENDIENTE\]/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function obtenerFechaHoyDMY() {
+      const hoy = new Date();
+      const d = String(hoy.getDate()).padStart(2, '0');
+      const m = String(hoy.getMonth() + 1).padStart(2, '0');
+      const y = hoy.getFullYear();
+      return `${d}/${m}/${y}`;
+    }
+
+    function parsearFechaGestion(str) {
+      if (!str) return null;
+      const partes = String(str).trim().split(" ");
+      const f = partes[0].split("/");
+      if (f.length !== 3) return null;
+      const h = (partes[1] || "00:00").split(":");
+      return new Date(Number(f[2]), Number(f[1]) - 1, Number(f[0]), Number(h[0] || 0), Number(h[1] || 0));
+    }
+
+    function esFechaDeHoy(strFecha) {
+      if (!strFecha) return false;
+      return String(strFecha).trim().startsWith(obtenerFechaHoyDMY());
+    }
+
+    function diasDesdeGestion(strFecha) {
+      const fechaObj = parsearFechaGestion(strFecha);
+      if (!fechaObj || isNaN(fechaObj.getTime())) return 999;
+      const diffMs = new Date() - fechaObj;
+      return diffMs / (1000 * 60 * 60 * 24);
+    }
+
+    function mostrarAlertaModal(mensaje, titulo = "Validación Requerida", callbackAccion = null) {
+      document.getElementById("modalAlertaTitulo").textContent = titulo;
+      document.getElementById("modalAlertaMensaje").innerHTML = mensaje;
+      callbackFocoAlerta = callbackAccion;
+      document.getElementById("modalAlertaApp").style.display = "flex";
+      document.getElementById("btnAceptarAlertaApp").focus();
+    }
+
+    function cerrarAlertaModal() {
+      document.getElementById("modalAlertaApp").style.display = "none";
+      if (callbackFocoAlerta) {
+        setTimeout(() => {
+          if (typeof callbackFocoAlerta === "function") {
+            callbackFocoAlerta();
+          } else if (typeof callbackFocoAlerta.focus === "function") {
+            callbackFocoAlerta.focus();
+            if (callbackFocoAlerta.tagName === "TEXTAREA") {
+              const len = callbackFocoAlerta.value.length;
+              callbackFocoAlerta.setSelectionRange(len, len);
+            } else if (typeof callbackFocoAlerta.select === "function") {
+              callbackFocoAlerta.select();
+            }
+          }
+        }, 60);
+      }
+      callbackFocoAlerta = null;
+    }
+
+    function seleccionarRegion(reg) {
+      document.getElementById("inputBusquedaRegion").value = reg;
+      document.getElementById("regionSeleccionadaVal").value = reg;
+      
+      const inputAgencia = document.getElementById("inputBusquedaAgencia");
+      const valAgencia = document.getElementById("agenciaSeleccionadaVal");
+      inputAgencia.value = "";
+      valAgencia.value = "";
+
+      if (!reg) {
+        inputAgencia.disabled = true;
+        inputAgencia.placeholder = "Primero elija una región...";
+        listaAgenciasActualesRegion = [];
+        return;
+      }
+
+      inputAgencia.disabled = false;
+      inputAgencia.placeholder = "Haga clic o busque agencia...";
+
+      if (reg === "TODAS") {
+        const conjunto = new Set();
+        Object.values(catalogo).forEach(arr => arr.forEach(a => conjunto.add(a)));
+        listaAgenciasActualesRegion = Array.from(conjunto).sort();
+      } else {
+        listaAgenciasActualesRegion = catalogo[reg] || [];
+      }
+    }
+
+    function abrirDropdown(tipo) {
+      document.querySelectorAll('.combobox-dropdown').forEach(d => d.style.display = 'none');
+      document.querySelectorAll('.status-picker-dropdown').forEach(d => d.style.display = 'none');
+
+      if (tipo === 'region') {
+        renderizarOpcionesDropdown('dropdownRegion', listaRegiones, (val) => {
+          seleccionarRegion(val);
+        }, false);
+      } else if (tipo === 'agencia') {
+        renderizarOpcionesDropdown('dropdownAgencia', listaAgenciasActualesRegion, (val) => {
+          document.getElementById("inputBusquedaAgencia").value = (val === 'TODAS') ? '-- Todas las Agencias --' : val;
+          document.getElementById("agenciaSeleccionadaVal").value = val;
+        }, true);
+      } else if (tipo === 'filtroAgencia') {
+        const ags = ['TODAS', ...new Set(clientesCargados.map(c => c.agencia))].sort();
+        renderizarOpcionesDropdown('dropdownFiltroAgencia', ags, (val) => {
+          document.getElementById("inputFiltroAgenciaAdmin").value = val === 'TODAS' ? 'Todas las Agencias' : val;
+          document.getElementById("valFiltroAgenciaAdmin").value = val;
+          ejecutarFiltrosLocales();
+        }, false);
+      } else if (tipo === 'actividad') {
+        const opcionesAct = [
+          { v: 'TODAS', l: 'Toda la Actividad', svg: SVG_ICONS.clock },
+          { v: 'HOY', l: 'Actualizados Hoy', svg: SVG_ICONS.bolt },
+          { v: '7DIAS', l: 'Últimos 7 días', svg: SVG_ICONS.calendar },
+          { v: 'CON_GESTION', l: 'Todos los Actualizados', svg: SVG_ICONS.check },
+          { v: 'SIN_TOCAR', l: 'Sin tocar por Agencia', svg: SVG_ICONS.alert }
+        ];
+        const drop = document.getElementById("dropdownActividad");
+        drop.innerHTML = "";
+        opcionesAct.forEach(item => {
+          const div = document.createElement("div");
+          div.className = "combobox-option";
+          div.innerHTML = `${item.svg} <span>${item.l}</span>`;
+          div.onclick = function() {
+            document.getElementById("inputFiltroActividad").value = item.l;
+            document.getElementById("valFiltroActividad").value = item.v;
+            drop.style.display = "none";
+            ejecutarFiltrosLocales();
+          };
+          drop.appendChild(div);
+        });
+        drop.style.display = "block";
+      } else if (tipo === 'estatus') {
+        const ests = [
+          {v: 'TODOS', l: 'Todos los Estatus'},
+          {v: 'SIN_GESTION', l: 'Sin Gestionar'},
+          {v: 'Lista', l: 'Lista'},
+          {v: 'Gestión de Contacto', l: 'Gestión de Contacto'},
+          {v: 'Faltan Recaudos', l: 'Faltan Recaudos'},
+          {v: 'No Procede', l: 'No Procede'},
+          {v: 'Ilocalizable', l: 'Ilocalizable'},
+          {v: 'ALERTA', l: 'No Proc. + Iloc.'}
+        ];
+        const drop = document.getElementById("dropdownEstatus");
+        drop.innerHTML = "";
+        ests.forEach(item => {
+          const div = document.createElement("div");
+          div.className = "combobox-option";
+          div.textContent = item.l;
+          div.onclick = function() {
+            document.getElementById("inputFiltroEstatus").value = item.l;
+            document.getElementById("valFiltroEstatus").value = item.v;
+            drop.style.display = "none";
+            ejecutarFiltrosLocales();
+          };
+          drop.appendChild(div);
+        });
+        drop.style.display = "block";
+      }
+    }
+
+    function filtrarDropdown(tipo) {
+      if (tipo === 'region') {
+        const texto = document.getElementById("inputBusquedaRegion").value.toLowerCase().trim();
+        const filtradas = listaRegiones.filter(r => r.toLowerCase().includes(texto));
+        renderizarOpcionesDropdown('dropdownRegion', filtradas, (val) => {
+          seleccionarRegion(val);
+        }, false);
+      } else if (tipo === 'agencia') {
+        const texto = document.getElementById("inputBusquedaAgencia").value.toLowerCase().trim();
+        const filtradas = listaAgenciasActualesRegion.filter(ag => ag.toLowerCase().includes(texto));
+        renderizarOpcionesDropdown('dropdownAgencia', filtradas, (val) => {
+          document.getElementById("inputBusquedaAgencia").value = (val === 'TODAS') ? '-- Todas las Agencias --' : val;
+          document.getElementById("agenciaSeleccionadaVal").value = val;
+        }, true);
+      } else if (tipo === 'filtroAgencia') {
+        const texto = document.getElementById("inputFiltroAgenciaAdmin").value.toLowerCase().trim();
+        const ags = [...new Set(clientesCargados.map(c => c.agencia))].filter(ag => ag.toLowerCase().includes(texto)).sort();
+        renderizarOpcionesDropdown('dropdownFiltroAgencia', ['TODAS', ...ags], (val) => {
+          document.getElementById("inputFiltroAgenciaAdmin").value = val === 'TODAS' ? 'Todas las Agencias' : val;
+          document.getElementById("valFiltroAgenciaAdmin").value = val;
+          ejecutarFiltrosLocales();
+        }, false);
+      }
+    }
+
+    function renderizarOpcionesDropdown(idDropdown, arrayItems, callbackSeleccion, incluirOpcionTodas) {
+      const dropdown = document.getElementById(idDropdown);
+      dropdown.innerHTML = "";
+
+      if (incluirOpcionTodas) {
+        const optTodas = document.createElement("div");
+        optTodas.className = "combobox-option";
+        optTodas.style.fontWeight = "700";
+        optTodas.textContent = "-- Todas las Agencias de la Región --";
+        optTodas.onclick = function() {
+          callbackSeleccion("TODAS");
+          dropdown.style.display = "none";
+        };
+        dropdown.appendChild(optTodas);
+      }
+
+      arrayItems.forEach(item => {
+        if (item === 'TODAS' && incluirOpcionTodas) return;
+        const div = document.createElement("div");
+        div.className = "combobox-option";
+        div.textContent = item;
+        div.onclick = function() {
+          callbackSeleccion(item);
+          dropdown.style.display = "none";
+        };
+        dropdown.appendChild(div);
+      });
+
+      dropdown.style.display = "block";
+    }
+
+    function aplicarFiltroAgencia() {
+      const reg = document.getElementById("regionSeleccionadaVal").value || document.getElementById("inputBusquedaRegion").value.trim();
+      const ag = document.getElementById("agenciaSeleccionadaVal").value || document.getElementById("inputBusquedaAgencia").value.trim();
+
+      if (!reg || !ag) {
+        mostrarAlertaModal("Debe seleccionar una Región y una Agencia válida para continuar.", "Campos Incompletos");
+        return;
+      }
+
+      guardarSesionNavegador({ modo: "AGENCIA", region: reg, agencia: ag });
+
+      esModoAdmin = false;
+      configurarInterfazPorModo();
+      mostrarToast("Cargando clientes...", "clock");
+      document.getElementById("selectorModal").style.display = "none";
+
+      google.script.run
+        .withFailureHandler(err => {
+          ocultarToast();
+          mostrarAlertaModal("Error cargando cartera: " + err.message, "Error del Servidor");
+        })
+        .withSuccessHandler(function(data) {
+          procesarDatosRecibidos(data, `Región: ${reg}  |  Agencia: ${ag}`);
+        }).obtenerClientes(reg, ag);
+    }
+
+    function abrirModalPin() {
+      document.getElementById("selectorModal").style.display = "none";
+      document.getElementById("adminAccessModal").style.display = "flex";
+      if (!esModoAdmin) {
+        document.getElementById("seccionPin").style.display = "block";
+        document.getElementById("seccionRegionesAdmin").style.display = "none";
+        document.getElementById("inputPin").value = "";
+        document.getElementById("inputPin").focus();
+      } else {
+        document.getElementById("seccionPin").style.display = "none";
+        document.getElementById("seccionRegionesAdmin").style.display = "block";
+      }
+    }
+
+    function cerrarModalAdmin() {
+      document.getElementById("adminAccessModal").style.display = "none";
+      if (clientesCargados.length === 0) document.getElementById("selectorModal").style.display = "flex";
+    }
+
+    function validarPin() {
+      const pin = document.getElementById("inputPin").value;
+      google.script.run
+        .withFailureHandler(err => mostrarAlertaModal("Error validando PIN: " + err.message, "Error de Seguridad"))
+        .withSuccessHandler(function(esValido) {
+          if (esValido) {
+            document.getElementById("seccionPin").style.display = "none";
+            document.getElementById("seccionRegionesAdmin").style.display = "block";
+          } else {
+            mostrarAlertaModal("El PIN de seguridad ingresado es incorrecto.", "Acceso Denegado", document.getElementById("inputPin"));
+            document.getElementById("inputPin").value = "";
+          }
+        }).verificarPinAdmin(pin);
+    }
+
+    function toggleTodasRegionesAdmin(marcado) {
+      document.querySelectorAll(".chk-region-admin").forEach(chk => chk.checked = marcado);
+    }
+
+    function verificarEstadoChkTodas() {
+      const todos = Array.from(document.querySelectorAll(".chk-region-admin"));
+      document.getElementById("chkTodasRegiones").checked = todos.every(c => c.checked);
+    }
+
+    function cargarPanelAdministrador() {
+      const chks = Array.from(document.querySelectorAll(".chk-region-admin:checked")).map(c => c.value);
+      if (chks.length === 0) { 
+        mostrarAlertaModal("Seleccione al menos una región para supervisar.", "Selección Requerida"); 
+        return; 
+      }
+
+      const todasMarcadas = document.getElementById("chkTodasRegiones").checked;
+      regionesAdminSeleccionadas = todasMarcadas ? ["TODAS"] : chks;
+      pestanaAdminActual = "CARTERA";
+
+      guardarSesionNavegador({
+        modo: "ADMIN",
+        regiones: regionesAdminSeleccionadas,
+        pestana: pestanaAdminActual
+      });
+
+      esModoAdmin = true;
+      configurarInterfazPorModo();
+      document.getElementById("adminAccessModal").style.display = "none";
+      mostrarToast("Cargando consola de supervisión...", "clock");
+
+      google.script.run
+        .withFailureHandler(err => {
+          ocultarToast();
+          mostrarAlertaModal("Error cargando panel admin: " + err.message, "Error del Servidor");
+        })
+        .withSuccessHandler(function(data) {
+          const etiqueta = todasMarcadas ? "TODAS LAS REGIONES" : chks.join(", ");
+          procesarDatosRecibidos(data, `CONSOLA SUPERVISOR | Regiones: ${etiqueta}`);
+          renderizarRadiografiaAgencias();
+        }).obtenerClientesAdmin(regionesAdminSeleccionadas);
+    }
+
+    function salirModoAdmin() {
+      esModoAdmin = false;
+      limpiarSesionNavegador();
+      configurarInterfazPorModo();
+      cambiarPestanaAdmin('CARTERA');
+      document.getElementById("selectorModal").style.display = "flex";
+    }
+
+    function configurarInterfazPorModo() {
+      const header = document.getElementById("mainHeader");
+      const badge = document.getElementById("badgeModo");
+      const navAdmin = document.getElementById("adminNavBar");
+      const btnLockTop = document.getElementById("btnAccesoAdminTop");
+      const containerFiltroAgAdmin = document.getElementById("containerFiltroAgenciaAdmin");
+
+      if (esModoAdmin) {
+        header.classList.add("admin-header");
+        badge.className = "badge-mode mode-admin";
+        badge.textContent = "Modo Supervisor";
+        navAdmin.style.display = "flex";
+        btnLockTop.style.display = "none";
+        containerFiltroAgAdmin.style.display = "inline-block";
+      } else {
+        header.classList.remove("admin-header");
+        badge.className = "badge-mode mode-agencia";
+        badge.textContent = "Vista Agencia";
+        navAdmin.style.display = "none";
+        btnLockTop.style.display = "inline-flex";
+        containerFiltroAgAdmin.style.display = "none";
+      }
+    }
+
+    function abrirSelectorSegunModo() {
+      if (esModoAdmin) {
+        abrirModalPin();
+      } else {
+        limpiarSesionNavegador();
+        document.getElementById("selectorModal").style.display = "flex";
+      }
+    }
+
+    function cambiarPestanaAdmin(pestana) {
+      pestanaAdminActual = pestana;
+      if (esModoAdmin) {
+        guardarSesionNavegador({
+          modo: "ADMIN",
+          regiones: regionesAdminSeleccionadas,
+          pestana: pestanaAdminActual
+        });
+      }
+
+      const btnCartera = document.getElementById("tabBtnCartera");
+      const btnRadio = document.getElementById("tabBtnRadiografia");
+      const contCartera = document.getElementById("vistaCarteraContainer");
+      const contRadio = document.getElementById("vistaRadiografiaContainer");
+
+      if (pestana === "RADIOGRAFIA") {
+        btnCartera.classList.remove("active"); btnRadio.classList.add("active");
+        contCartera.style.display = "none"; contRadio.style.display = "block";
+        renderizarRadiografiaAgencias();
+      } else {
+        btnRadio.classList.remove("active"); btnCartera.classList.add("active");
+        contRadio.style.display = "none"; contCartera.style.display = "block";
+      }
+    }
+
+    function procesarDatosRecibidos(data, textoUbicacion) {
+      const dataOrdenada = [...data].sort((a, b) => {
+        const estA = (a.estatus || "").trim();
+        const estB = (b.estatus || "").trim();
+        if (!estA && estB) return -1;
+        if (estA && !estB) return 1;
+        return (a.numFila || 0) - (b.numFila || 0);
+      });
+
+      clientesCargados = dataOrdenada.map(c => {
+        const comLimpio = (c.comentarios || "").trim();
+        const tienePrefijoPlanilla = comLimpio.toUpperCase().includes("CUENTA APERTURADA - PLANILLA PENDIENTE");
+
+        return {
+          ...c,
+          agencia: (c.agencia || "").trim(),
+          region: (c.region || "").trim(),
+          estatus: (c.estatus || "").trim(),
+          fechaEnvio: (c.fechaEnvio || "").trim(),
+          comentarios: comLimpio,
+          agenciaOriginal: (c.agencia || "").trim(),
+          regionOriginal: (c.region || "").trim(),
+          estatusOriginal: (c.estatus || "").trim(),
+          fechaOriginal: (c.fechaEnvio || "").trim(),
+          comentarioOriginal: comLimpio,
+          estadoHubspot: (c.estadoHubspot || "").trim(),
+          fechaActualizacion: (c.fechaActualizacion || "").trim(),
+          fueraDeZona: (c.fueraDeZona || "").trim().toUpperCase() === "SI" ? "SI" : "",
+          fueraDeZonaOriginal: (c.fueraDeZona || "").trim().toUpperCase() === "SI" ? "SI" : "",
+          fechaGestionAgencia: (c.fechaGestionAgencia || "").trim(),
+          planillaPendiente: tienePrefijoPlanilla,
+          planillaPendienteOriginal: tienePrefijoPlanilla
+        };
+      });
+
+      document.getElementById("inputFiltroAgenciaAdmin").value = "Todas las Agencias";
+      document.getElementById("valFiltroAgenciaAdmin").value = "TODAS";
+      document.getElementById("inputBusqueda").value = "";
+      document.getElementById("inputFiltroEstatus").value = "Todos los Estatus";
+      document.getElementById("valFiltroEstatus").value = "TODOS";
+      document.getElementById("inputFiltroActividad").value = "Toda la Actividad";
+      document.getElementById("valFiltroActividad").value = "TODAS";
+      soloFueraDeZonaActivo = false;
+      document.getElementById("btnFiltroFueraZona").classList.remove("active");
+
+      renderTabla();
+      recalcularKPIs();
+      actualizarContadorFueraDeZona();
+      actualizarBotonGuardar();
+      document.getElementById("filtroActualTexto").textContent = textoUbicacion;
+      ocultarToast();
+    }
+
+    function generarHtmlTrazabilidadHubSpot(estado, fecha) {
+      const estUpper = String(estado || "").trim().toUpperCase();
+      let claseBadge = "hs-sin-estado";
+      let textoBadge = estado || "Sin sincronizar";
+
+      if (estUpper === "POR ACTUALIZAR") {
+        claseBadge = "hs-por-actualizar";
+      } else if (estUpper === "ACTUALIZADO") {
+        claseBadge = "hs-actualizado";
+      } else if (estUpper === "YA ESTABA AVANZADO") {
+        claseBadge = "hs-avanzado";
+      } else if (estUpper === "NO EXISTE CLIENTE") {
+        claseBadge = "hs-no-existe";
+      }
+
+      const fechaHtml = fecha ? `<span class="hs-fecha">Bot: ${fecha}</span>` : "";
+      return `
+        <div class="hubspot-trace">
+          <span class="hs-badge ${claseBadge}">HubSpot: ${textoBadge}</span>
+          ${fechaHtml}
+        </div>
+      `;
+    }
+
+    function generarHtmlAuditoriaAgencia(fechaGestion) {
+      if (!fechaGestion) {
+        return `<div class="audit-pill audit-sin">${SVG_ICONS.alert} <span>Sin gestión registrada</span></div>`;
+      }
+      if (esFechaDeHoy(fechaGestion)) {
+        return `<div class="audit-pill audit-hoy">${SVG_ICONS.bolt} <span>Actualizado Hoy (${fechaGestion.split(" ")[1] || fechaGestion})</span></div>`;
+      }
+      return `<div class="audit-pill audit-reciente">${SVG_ICONS.clock} <span>Gestión: ${fechaGestion}</span></div>`;
+    }
+
+    function construirHtmlFila(c, index) {
+      const confEstatusActual = obtenerConfigEstatus(c.estatus);
+      const habilitarFecha = (c.estatus === "Lista" || esModoAdmin) && !c.planillaPendiente ? "" : "disabled";
+      const numWa = limpiarNumeroWhatsApp(c.telefono);
+      
+      const btnWaHtml = numWa ? `
+        <a href="https://wa.me/${numWa}" target="_blank" class="btn-wa">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+          WhatsApp
+        </a>` : "";
+
+      let controlesAdminHtml = esModoAdmin ? `
+        <div class="admin-edit-agencia-box">
+          <div style="display:flex; gap:4px; align-items:center;">
+            <input type="text" id="input_cod_agencia_${index}" class="input-agencia-code" value="${c.agencia}" placeholder="Ej: 52 o Altamira" title="Escriba el número de agencia y presione Enter" onblur="resolverCodigoAgencia(${index})" onkeydown="if(event.key==='Enter') { this.blur(); }">
+            <button class="btn-danger-action" onclick="confirmarEliminarCliente(${index})" title="Dar de baja">Dar de baja</button>
+          </div>
+          <span id="region_label_${index}" class="region-sub">Región: ${c.region}</span>
+        </div>
+      ` : '';
+
+      const estaFdz = c.fueraDeZona === "SI";
+      const fdzContainerClass = estaFdz ? "checkbox-fdz-container is-active" : "checkbox-fdz-container";
+
+      const opcionesDropdownHtml = LISTA_ESTATUS_CONFIG.map(opt => `
+        <div class="status-picker-option" onclick="seleccionarOpcionEstatus(${index}, '${opt.valor}')">
+          <span class="status-dot ${opt.dot}"></span>
+          <span>${opt.label}</span>
+        </div>
+      `).join("");
+
+      return `<tr id="fila_${index}">
+        <td>
+          <div class="empresa-title">${c.empresa}</div>
+          <div class="badges-row">
+            <span class="rif-badge">${c.rif}</span>
+            ${!esModoAdmin ? `<span class="agencia-sub" id="agencia_sub_${index}">${c.agencia}</span>` : ''}
+            ${!esModoAdmin ? `<span class="region-sub" id="region_sub_${index}">${c.region}</span>` : ''}
+          </div>
+          <label class="${fdzContainerClass}" id="box_fdz_${index}" title="Marque si el cliente está fuera de la zona de su agencia y debe ser reubicado">
+            <input type="checkbox" id="chk_fdz_${index}" ${estaFdz ? 'checked' : ''} onchange="alCambiarCheckboxFueraZona(${index}, this.checked)">
+            ${SVG_ICONS.pin}
+            <span class="checkbox-fdz-label" id="lbl_fdz_${index}">
+              ${estaFdz ? 'No pertenece a esta agencia (Reubicar)' : 'No pertenece a esta agencia'}
+            </span>
+          </label>
+          ${controlesAdminHtml}
+        </td>
+        <td>
+          <div class="contact-box">
+            <div class="contact-name">${c.contacto || 'Sin nombre de contacto'}</div>
+            <div class="phone-row">
+              <div class="contact-pill" onclick="copiarTexto('${c.telefono}', 'Teléfono')">Tel: <span>${c.telefono || 'S/T'}</span></div>
+              ${btnWaHtml}
+            </div>
+            <div class="contact-pill" onclick="copiarTexto('${c.email}', 'Correo')">Email: <span class="email-text">${c.email || 'S/C'}</span></div>
+            <div id="audit_agencia_${index}">
+              ${generarHtmlAuditoriaAgencia(c.fechaGestionAgencia)}
+            </div>
+          </div>
+        </td>
+        <td>
+          <div class="status-picker-container" id="status_picker_${index}">
+            <div class="status-badge-button ${confEstatusActual.clase}" id="status_btn_${index}" onclick="toggleDropdownEstatus(${index})">
+              <span id="status_txt_${index}">${confEstatusActual.label}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            <input type="hidden" id="estatus_${index}" value="${c.estatus}">
+            <div class="status-picker-dropdown" id="status_drop_${index}">
+              ${opcionesDropdownHtml}
+            </div>
+          </div>
+          <div id="hubspot_info_${index}">
+            ${generarHtmlTrazabilidadHubSpot(c.estadoHubspot, c.fechaActualizacion)}
+          </div>
+        </td>
+        <td>
+          <input type="date" class="input-cell" id="fecha_${index}" value="${c.fechaEnvio}" ${habilitarFecha} onchange="validarCambioFecha(${index})">
+          <label class="chk-planilla-box" title="Marque esta opción si el cliente ya tiene la cuenta abierta en el banco pero aún no se le envía la planilla">
+            <input type="checkbox" id="chk_planilla_pend_${index}" ${c.planillaPendiente ? 'checked' : ''} onchange="alCambiarPlanillaPendiente(${index}, this.checked)">
+            <span>Cuenta activa / Planilla pendiente</span>
+          </label>
+        </td>
+        <td>
+          <textarea class="input-cell" id="comentarios_${index}" rows="2" placeholder="Escriba la observación de gestión..." oninput="validarEscrituraComentario(${index})">${c.comentarios}</textarea>
+        </td>
+      </tr>`;
+    }
+
+    function renderTabla() {
+      const tbody = document.getElementById("tablaBody");
+
+      if (clientesCargados.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 35px; color: var(--text-muted);">No se encontraron clientes en esta vista.</td></tr>';
+        return;
+      }
+
+      const LOTE_INICIAL = 80;
+      const primerasFilas = clientesCargados.slice(0, LOTE_INICIAL).map((c, idx) => construirHtmlFila(c, idx)).join("");
+      tbody.innerHTML = primerasFilas;
+
+      if (clientesCargados.length > LOTE_INICIAL) {
+        requestAnimationFrame(() => {
+          const restoFilas = clientesCargados.slice(LOTE_INICIAL).map((c, idx) => construirHtmlFila(c, idx + LOTE_INICIAL)).join("");
+          tbody.insertAdjacentHTML("beforeend", restoFilas);
+          ejecutarFiltrosLocales();
+        });
+      }
+    }
+
+    function resolverCodigoAgencia(index) {
+      const input = document.getElementById(`input_cod_agencia_${index}`);
+      if (!input) return;
+
+      const valorIngresado = input.value.trim();
+      if (!valorIngresado) return;
+
+      const c = clientesCargados[index];
+      const soloNumero = valorIngresado.replace(/\D/g, "");
+
+      let encontrada = null;
+
+      if (soloNumero) {
+        encontrada = catalogoMaestroAgencias.find(item => {
+          const codMasterNum = String(item.cod).replace(/\D/g, "");
+          return Number(codMasterNum) === Number(soloNumero);
+        });
+      }
+
+      if (!encontrada) {
+        const busquedaTexto = valorIngresado.toLowerCase();
+        encontrada = catalogoMaestroAgencias.find(item => 
+          item.nombre.toLowerCase().includes(busquedaTexto)
+        );
+      }
+
+      if (encontrada) {
+        input.classList.remove("error-code");
+        input.value = encontrada.nombre;
+        c.agencia = encontrada.nombre;
+        c.region = encontrada.region;
+
+        const lblRegion = document.getElementById(`region_label_${index}`);
+        if (lblRegion) {
+          lblRegion.textContent = `Región: ${encontrada.region}`;
+        }
+
+        actualizarBotonGuardar();
+      } else {
+        input.classList.add("error-code");
+        mostrarAlertaModal(
+          `No se encontró ninguna agencia con el código o nombre <strong>"${valorIngresado}"</strong> en la tabla maestra de Agencias. Por favor verifique el código.`,
+          "Código no encontrado",
+          input
+        );
+      }
+    }
+
+    function toggleDropdownEstatus(index) {
+      const drop = document.getElementById(`status_drop_${index}`);
+      const btn = document.getElementById(`status_btn_${index}`);
+      const estaAbierto = drop.style.display === "block";
+
+      document.querySelectorAll('.status-picker-dropdown').forEach(d => d.style.display = 'none');
+      document.querySelectorAll('.combobox-dropdown').forEach(d => d.style.display = 'none');
+
+      if (!estaAbierto) {
+        btn.classList.remove("error-status-border");
+        drop.style.display = "block";
+      }
+    }
+
+    function seleccionarOpcionEstatus(index, nuevoValor) {
+      const c = clientesCargados[index];
+      c.estatus = nuevoValor;
+
+      const inputHidden = document.getElementById(`estatus_${index}`);
+      const txtBtn = document.getElementById(`status_txt_${index}`);
+      const btn = document.getElementById(`status_btn_${index}`);
+      const drop = document.getElementById(`status_drop_${index}`);
+      const fec = document.getElementById(`fecha_${index}`);
+      const chkPend = document.getElementById(`chk_planilla_pend_${index}`);
+
+      if (inputHidden) inputHidden.value = nuevoValor;
+      const conf = obtenerConfigEstatus(nuevoValor);
+
+      if (txtBtn) txtBtn.textContent = conf.label;
+      if (btn) btn.className = `status-badge-button ${conf.clase}`;
+      if (drop) drop.style.display = "none";
+
+      if (nuevoValor === "Lista" || esModoAdmin) {
+        if (fec) fec.disabled = chkPend && chkPend.checked;
+      } else {
+        if (fec) { fec.value = ""; fec.disabled = true; }
+        c.fechaEnvio = "";
+        if (chkPend) chkPend.checked = false;
+        c.planillaPendiente = false;
+      }
+
+      recalcularKPIs();
+      actualizarBotonGuardar();
+    }
+
+    function obtenerConfigEstatus(val) {
+      const encontrado = LISTA_ESTATUS_CONFIG.find(item => item.valor === val);
+      return encontrado || LISTA_ESTATUS_CONFIG[0];
+    }
+
+    function alCambiarPlanillaPendiente(index, marcado) {
+      const c = clientesCargados[index];
+      const inputFecha = document.getElementById(`fecha_${index}`);
+      const txtArea = document.getElementById(`comentarios_${index}`);
+      const etiquetaAutocompletar = "[CUENTA APERTURADA - PLANILLA PENDIENTE] ";
+
+      c.planillaPendiente = marcado;
+
+      if (marcado) {
+        if (inputFecha) { inputFecha.value = ""; inputFecha.disabled = true; }
+        c.fechaEnvio = "";
+
+        if (txtArea && !txtArea.value.toUpperCase().includes("[CUENTA APERTURADA - PLANILLA PENDIENTE]")) {
+          txtArea.value = etiquetaAutocompletar + txtArea.value.trim();
+        }
+      } else {
+        if ( (c.estatus === "Lista" || esModoAdmin) && inputFecha ) {
+          inputFecha.disabled = false;
+        }
+        if (txtArea) {
+          txtArea.value = txtArea.value.replace(/\[CUENTA APERTURADA - PLANILLA PENDIENTE\]\s*/gi, "").trim();
+        }
+      }
+
+      if (txtArea) c.comentarios = txtArea.value.trim();
+      actualizarBotonGuardar();
+    }
+
+    function alCambiarCheckboxFueraZona(index, marcado) {
+      const c = clientesCargados[index];
+      const txtArea = document.getElementById(`comentarios_${index}`);
+      const boxFdz = document.getElementById(`box_fdz_${index}`);
+      const lblFdz = document.getElementById(`lbl_fdz_${index}`);
+      const prefijo = "[FUERA DE ZONA] ";
+
+      if (marcado) {
+        c.fueraDeZona = "SI";
+        if (boxFdz) boxFdz.classList.add("is-active");
+        if (lblFdz) lblFdz.textContent = "No pertenece a esta agencia (Reubicar)";
+
+        if (txtArea && !txtArea.value.toUpperCase().includes("[FUERA DE ZONA]")) {
+          txtArea.value = prefijo + txtArea.value.trim();
+        }
+      } else {
+        c.fueraDeZona = "";
+        if (boxFdz) boxFdz.classList.remove("is-active");
+        if (lblFdz) lblFdz.textContent = "No pertenece a esta agencia";
+
+        if (txtArea) {
+          txtArea.value = txtArea.value.replace(/\[FUERA DE ZONA\]\s*/gi, "").trim();
+        }
+      }
+
+      if (txtArea) c.comentarios = txtArea.value.trim();
+      actualizarContadorFueraDeZona();
+      actualizarBotonGuardar();
+    }
+
+    function toggleFiltroFueraDeZona() {
+      soloFueraDeZonaActivo = !soloFueraDeZonaActivo;
+      const btn = document.getElementById("btnFiltroFueraZona");
+      if (soloFueraDeZonaActivo) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+      ejecutarFiltrosLocales();
+    }
+
+    function actualizarContadorFueraDeZona() {
+      const totalFdz = clientesCargados.filter(c => c.fueraDeZona === "SI").length;
+      document.getElementById("conteoFueraZona").textContent = totalFdz;
+    }
+
+    function renderizarRadiografiaAgencias() {
+      const tbody = document.getElementById("tablaRadiografiaBody");
+      tbody.innerHTML = "";
+      const mapaAgencias = {};
+
+      clientesCargados.forEach((c) => {
+        const est = c.estatus;
+        const ag = c.agencia || "SIN AGENCIA";
+
+        if (!mapaAgencias[ag]) {
+          mapaAgencias[ag] = { 
+            agencia: ag, 
+            region: c.region || "", 
+            total: 0, 
+            sinGestion: 0, 
+            lista: 0, 
+            enGestion: 0, 
+            recaudos: 0, 
+            alerta: 0,
+            ultimaActividad: "",
+            ultimaFechaObj: null
+          };
+        }
+        mapaAgencias[ag].total++;
+        if (!est) mapaAgencias[ag].sinGestion++;
+        else if (est === "Lista") mapaAgencias[ag].lista++;
+        else if (est === "Gestión de Contacto") mapaAgencias[ag].enGestion++;
+        else if (est === "Faltan Recaudos") mapaAgencias[ag].recaudos++;
+        else if (est === "No Procede" || est === "Ilocalizable") mapaAgencias[ag].alerta++;
+
+        if (c.fechaGestionAgencia) {
+          const fObj = parsearFechaGestion(c.fechaGestionAgencia);
+          if (fObj && (!mapaAgencias[ag].ultimaFechaObj || fObj > mapaAgencias[ag].ultimaFechaObj)) {
+            mapaAgencias[ag].ultimaFechaObj = fObj;
+            mapaAgencias[ag].ultimaActividad = c.fechaGestionAgencia;
+          }
+        }
+      });
+
+      const lista = Object.values(mapaAgencias).map(item => {
+        const gest = item.total - item.sinGestion;
+        item.pct = item.total > 0 ? Math.round((gest / item.total) * 100) : 0;
+        return item;
+      }).sort((a, b) => a.pct - b.pct);
+
+      const htmlFilas = lista.map(item => {
+        let color = item.pct >= 80 ? "#16A34A" : (item.pct >= 40 ? "#D97706" : "#DC2626");
+        let badgeActividadHtml = "";
+        if (!item.ultimaActividad) {
+          badgeActividadHtml = `<span class="act-badge act-rojo"><span class="act-dot"></span>Sin actividad</span>`;
+        } else if (esFechaDeHoy(item.ultimaActividad)) {
+          badgeActividadHtml = `<span class="act-badge act-verde"><span class="act-dot"></span>Activa Hoy (${item.ultimaActividad.split(" ")[1] || ""})</span>`;
+        } else {
+          const dias = diasDesdeGestion(item.ultimaActividad);
+          if (dias <= 3) {
+            badgeActividadHtml = `<span class="act-badge act-amarillo"><span class="act-dot"></span>${item.ultimaActividad}</span>`;
+          } else {
+            badgeActividadHtml = `<span class="act-badge act-rojo"><span class="act-dot"></span>Rezago (${item.ultimaActividad.split(" ")[0]})</span>`;
+          }
+        }
+
+        return `<tr>
+          <td><strong>${item.agencia}</strong></td>
+          <td>${item.region}</td>
+          <td style="text-align:center;font-weight:700;">${formatearMiles(item.total)}</td>
+          <td style="text-align:center;color:${item.sinGestion>0?'#B91C1C':'#64748B'};font-weight:700;">${formatearMiles(item.sinGestion)}</td>
+          <td style="text-align:center;color:#15803D;font-weight:700;">${formatearMiles(item.lista)}</td>
+          <td style="text-align:center;color:var(--primary);font-weight:600;">${formatearMiles(item.enGestion)}</td>
+          <td style="text-align:center;color:#B45309;font-weight:600;">${formatearMiles(item.recaudos)}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <strong style="font-size:0.75rem;min-width:34px;">${item.pct}%</strong>
+              <div class="progress-bar-bg" style="flex:1;"><div class="progress-bar-fill" style="width: ${item.pct}%;background:${color};"></div></div>
+            </div>
+          </td>
+          <td style="text-align:center;">${badgeActividadHtml}</td>
+          <td style="text-align:center;"><button class="btn-add" style="padding:4px 10px;font-size:0.72rem;height:28px;" onclick="auditarAgencia('${item.agencia}')">Auditar</button></td>
+        </tr>`;
+      }).join("");
+
+      tbody.innerHTML = htmlFilas;
+    }
+
+    function auditarAgencia(ag) {
+      cambiarPestanaAdmin('CARTERA');
+      document.getElementById("inputFiltroAgenciaAdmin").value = ag;
+      document.getElementById("valFiltroAgenciaAdmin").value = ag;
+      ejecutarFiltrosLocales();
+    }
+
+    function recalcularKPIs() {
+      const total = clientesCargados.length;
+      let pend = 0, lista = 0, gest = 0, rec = 0, alerta = 0, hoyCont = 0;
+
+      for (let i = 0; i < total; i++) {
+        const c = clientesCargados[i];
+        const est = c.estatus;
+        if (!est) pend++;
+        else if (est === "Lista") lista++;
+        else if (est === "Gestión de Contacto") gest++;
+        else if (est === "Faltan Recaudos") rec++;
+        else if (est === "No Procede" || est === "Ilocalizable") alerta++;
+
+        if (esFechaDeHoy(c.fechaGestionAgencia)) {
+          hoyCont++;
+        }
+      }
+
+      const pct = v => total > 0 ? Math.round((v / total) * 100) + "%" : "0%";
+      const av = total > 0 ? Math.round(((total - pend) / total) * 100) : 0;
+
+      document.getElementById("val_total").textContent = formatearMiles(total);
+      document.getElementById("val_pendientes").textContent = formatearMiles(pend);
+      document.getElementById("pct_pendientes").textContent = pct(pend);
+      document.getElementById("val_lista").textContent = formatearMiles(lista);
+      document.getElementById("pct_lista").textContent = pct(lista);
+      document.getElementById("val_gestion").textContent = formatearMiles(gest);
+      document.getElementById("pct_gestion").textContent = pct(gest);
+      document.getElementById("val_recaudos").textContent = formatearMiles(rec);
+      document.getElementById("pct_recaudos").textContent = pct(rec);
+      document.getElementById("val_alerta").textContent = formatearMiles(alerta);
+      document.getElementById("pct_alerta").textContent = pct(alerta);
+      document.getElementById("val_hoy").textContent = formatearMiles(hoyCont);
+      document.getElementById("pct_hoy").textContent = pct(hoyCont);
+
+      document.getElementById("textoAvance").textContent = `${av}% (${formatearMiles(total - pend)}/${formatearMiles(total)})`;
+      document.getElementById("barraAvance").style.width = `${av}%`;
+    }
+
+    function filtrarDesdeKPI(filtro) {
+      if (esModoAdmin) cambiarPestanaAdmin('CARTERA');
+      
+      if (filtro === 'HOY') {
+        document.getElementById("valFiltroEstatus").value = "TODOS";
+        document.getElementById("inputFiltroEstatus").value = "Todos los Estatus";
+        document.getElementById("valFiltroActividad").value = "HOY";
+        document.getElementById("inputFiltroActividad").value = "Actualizados Hoy";
+        ejecutarFiltrosLocales();
+        document.querySelectorAll(".kpi-card").forEach(c => c.classList.remove("active-kpi"));
+        document.getElementById("kpi_HOY").classList.add("active-kpi");
+        return;
+      }
+
+      document.getElementById("valFiltroActividad").value = "TODAS";
+      document.getElementById("inputFiltroActividad").value = "Toda la Actividad";
+
+      const mapText = {
+        'TODOS': 'Todos los Estatus',
+        'SIN_GESTION': 'Sin Gestionar',
+        'Lista': 'Lista',
+        'Gestión de Contacto': 'Gestión de Contacto',
+        'Faltan Recaudos': 'Faltan Recaudos',
+        'ALERTA': 'No Proc. + Iloc.'
+      };
+      document.getElementById("valFiltroEstatus").value = filtro;
+      document.getElementById("inputFiltroEstatus").value = mapText[filtro] || filtro;
+      ejecutarFiltrosLocales();
+    }
+
+    function limpiarFiltrosLocales() {
+      document.getElementById("inputBusqueda").value = "";
+      document.getElementById("valFiltroEstatus").value = "TODOS";
+      document.getElementById("inputFiltroEstatus").value = "Todos los Estatus";
+      document.getElementById("valFiltroAgenciaAdmin").value = "TODAS";
+      document.getElementById("inputFiltroAgenciaAdmin").value = "Todas las Agencias";
+      document.getElementById("valFiltroActividad").value = "TODAS";
+      document.getElementById("inputFiltroActividad").value = "Toda la Actividad";
+      soloFueraDeZonaActivo = false;
+      document.getElementById("btnFiltroFueraZona").classList.remove("active");
+      ejecutarFiltrosLocales();
+    }
+
+    function ejecutarFiltrosLocales() {
+      const texto = document.getElementById("inputBusqueda").value.toLowerCase().trim();
+      const filtroEst = document.getElementById("valFiltroEstatus").value;
+      const filtroAg = document.getElementById("valFiltroAgenciaAdmin").value;
+      const filtroAct = document.getElementById("valFiltroActividad").value;
+
+      document.querySelectorAll(".kpi-card").forEach(c => c.classList.remove("active-kpi"));
+      if (filtroAct === "HOY") {
+        document.getElementById("kpi_HOY").classList.add("active-kpi");
+      } else {
+        const kpi = document.getElementById(`kpi_${filtroEst}`);
+        if (kpi) kpi.classList.add("active-kpi");
+      }
+
+      clientesCargados.forEach((c, i) => {
+        const fila = document.getElementById(`fila_${i}`);
+        if (!fila) return;
+        const estActual = c.estatus;
+        const agActual = c.agencia;
+
+        const matchTxt = !texto || c.empresa.toLowerCase().includes(texto) || c.rif.toLowerCase().includes(texto) || (c.contacto||"").toLowerCase().includes(texto);
+        const matchAg = (!esModoAdmin || filtroAg === "TODAS" || agActual === filtroAg);
+        
+        let matchEst = false;
+        if (filtroEst === "TODOS") matchEst = true;
+        else if (filtroEst === "SIN_GESTION") matchEst = (estActual === "");
+        else if (filtroEst === "ALERTA") matchEst = (estActual === "No Procede" || estActual === "Ilocalizable");
+        else matchEst = (estActual === filtroEst);
+
+        let matchAct = true;
+        if (filtroAct === "HOY") {
+          matchAct = esFechaDeHoy(c.fechaGestionAgencia);
+        } else if (filtroAct === "7DIAS") {
+          matchAct = Boolean(c.fechaGestionAgencia) && diasDesdeGestion(c.fechaGestionAgencia) <= 7;
+        } else if (filtroAct === "CON_GESTION") {
+          matchAct = Boolean(c.fechaGestionAgencia);
+        } else if (filtroAct === "SIN_TOCAR") {
+          matchAct = !c.fechaGestionAgencia;
+        }
+
+        const matchFdz = !soloFueraDeZonaActivo || (c.fueraDeZona === "SI");
+
+        fila.style.display = (matchTxt && matchAg && matchEst && matchAct && matchFdz) ? "" : "none";
+      });
+    }
+
+    function actualizarBotonGuardar() {
+      let mod = 0;
+      clientesCargados.forEach((c, i) => {
+        const cambiado = (c.estatus !== c.estatusOriginal || c.fechaEnvio !== c.fechaOriginal || c.comentarios !== c.comentarioOriginal || c.agencia !== c.agenciaOriginal || c.region !== c.regionOriginal || c.fueraDeZona !== c.fueraDeZonaOriginal || c.planillaPendiente !== c.planillaPendienteOriginal);
+        const fila = document.getElementById(`fila_${i}`);
+        if (cambiado) {
+          mod++;
+          if (fila) fila.classList.add("fila-modificada");
+        } else {
+          if (fila) fila.classList.remove("fila-modificada");
+        }
+      });
+
+      const btn = document.getElementById("btnGuardar");
+      if (mod > 0) { btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> Guardar Cambios (${mod})`; btn.classList.add("has-changes"); }
+      else { btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> Guardar Cambios`; btn.classList.remove("has-changes"); }
+    }
+
+    function validarCambioFecha(index) {
+      const elFecha = document.getElementById(`fecha_${index}`);
+      if (elFecha) clientesCargados[index].fechaEnvio = elFecha.value;
+      actualizarBotonGuardar();
+    }
+
+    function validarEscrituraComentario(index) { 
+      const elComent = document.getElementById(`comentarios_${index}`);
+      if (elComent) {
+        elComent.classList.remove("error-comment-border");
+        clientesCargados[index].comentarios = elComent.value.trim();
+      }
+      actualizarBotonGuardar(); 
+    }
+
+    function guardarTodo() {
+      if (clientesCargados.length === 0) return;
+      const cambios = [];
+
+      for (let i = 0; i < clientesCargados.length; i++) {
+        const c = clientesCargados[i];
+        const est = c.estatus;
+        const fec = c.fechaEnvio;
+        const com = c.comentarios;
+        const ag = c.agencia;
+        const reg = c.region;
+        const fdz = c.fueraDeZona || "";
+        const planillaPendiente = Boolean(c.planillaPendiente);
+
+        const filaHaCambiado = (est !== c.estatusOriginal || fec !== c.fechaOriginal || com !== c.comentarioOriginal || ag !== c.agenciaOriginal || reg !== c.regionOriginal || fdz !== c.fueraDeZonaOriginal || planillaPendiente !== c.planillaPendienteOriginal);
+
+        if (filaHaCambiado) {
+          if (!esModoAdmin) {
+            const filaEl = document.getElementById(`fila_${i}`);
+
+            if (!est || est === "") {
+              const btnStatus = document.getElementById(`status_btn_${i}`);
+              if (filaEl) filaEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              if (btnStatus) btnStatus.classList.add("error-status-border");
+
+              mostrarAlertaModal(
+                `Para guardar cambios en el cliente <strong>${c.empresa}</strong>, es obligatorio seleccionar un <strong>Estatus de Gestión</strong>.`,
+                "Estatus de Gestión Obligatorio",
+                () => {
+                  toggleDropdownEstatus(i);
+                }
+              );
+              return;
+            }
+
+            if (est === "Lista" && !fec && !planillaPendiente) { 
+              const elFecha = document.getElementById(`fecha_${i}`);
+              if (filaEl) filaEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              mostrarAlertaModal(
+                `El cliente <strong>${c.empresa}</strong> fue marcado como <strong>Lista</strong>. Debe ingresar la <em>Fecha de Envío de Planillas</em> o tildar la casilla <em>"Cuenta activa / Planilla pendiente"</em> si la cuenta ya está abierta.`,
+                "Fecha o Confirmación Requerida",
+                elFecha
+              );
+              return; 
+            }
+
+            const textoBaseActual = extraerTextoBaseSinEtiquetas(com);
+            const textoBaseOriginal = extraerTextoBaseSinEtiquetas(c.comentarioOriginal);
+            const escribioNotaReal = (textoBaseActual !== textoBaseOriginal) && (textoBaseActual.length > 0);
+
+            if (!escribioNotaReal) {
+              const elComent = document.getElementById(`comentarios_${i}`);
+              if (filaEl) filaEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              if (elComent) elComent.classList.add("error-comment-border");
+
+              let detalleExigencia = `Debe redactar una observación detallada de gestión para <strong>${c.empresa}</strong> antes de guardar.`;
+
+              if (fdz === "SI" && planillaPendiente) {
+                detalleExigencia = `Ha marcado a <strong>${c.empresa}</strong> como <em>Fuera de Zona</em> y con <em>Cuenta Activa / Planilla Pendiente</em>. Además de las etiquetas automáticas, es obligatorio escribir en las observaciones <strong>cuál es la agencia más cercana</strong> y la <strong>fecha de apertura de la cuenta</strong>.`;
+              } else if (fdz === "SI") {
+                detalleExigencia = `Ha indicado que <strong>${c.empresa}</strong> no pertenece a esta agencia. Además de la etiqueta automática <code>[FUERA DE ZONA]</code>, es obligatorio escribir en las observaciones <strong>cuál es la agencia más cercana o dirección del cliente</strong> para poder reubicarlo.`;
+              } else if (planillaPendiente) {
+                detalleExigencia = `Ha marcado que <strong>${c.empresa}</strong> tiene <em>Cuenta activa / Planilla pendiente</em>. Además de la etiqueta automática, es obligatorio indicar en las observaciones la <strong>fecha de apertura de la cuenta</strong> o el detalle del caso.`;
+              }
+
+              mostrarAlertaModal(
+                detalleExigencia,
+                "Nota Adicional Obligatoria",
+                elComent
+              );
+              return;
+            }
+          }
+
+          cambios.push({ 
+            indexMemoria: i, 
+            numFila: c.numFila, 
+            agencia: ag, 
+            region: reg, 
+            estatus: est, 
+            fechaEnvio: fec, 
+            comentarios: com, 
+            fueraDeZona: fdz 
+          });
+        }
+      }
+
+      if (cambios.length === 0) { 
+        mostrarToast("No hay cambios pendientes por guardar.", "clock"); 
+        setTimeout(ocultarToast, 2000); 
+        return; 
+      }
+
+      mostrarToast("Guardando y registrando cambios...", "clock");
+      google.script.run
+        .withFailureHandler(err => {
+          ocultarToast();
+          mostrarAlertaModal("Error guardando cambios: " + err.message, "Error al Guardar");
+        })
+        .withSuccessHandler(res => {
+          mostrarToast(res.mensaje, "check");
+          const fechaNuevaGestion = res.fechaGestion || obtenerFechaHoyDMY() + " Reciente";
+
+          cambios.forEach(item => {
+            const idx = item.indexMemoria;
+            clientesCargados[idx].agenciaOriginal = item.agencia;
+            clientesCargados[idx].regionOriginal = item.region;
+            clientesCargados[idx].estatusOriginal = item.estatus;
+            clientesCargados[idx].fechaOriginal = item.fechaEnvio;
+            clientesCargados[idx].comentarioOriginal = item.comentarios;
+            clientesCargados[idx].fueraDeZonaOriginal = item.fueraDeZona;
+            clientesCargados[idx].planillaPendienteOriginal = clientesCargados[idx].planillaPendiente;
+            clientesCargados[idx].fechaGestionAgencia = fechaNuevaGestion;
+            clientesCargados[idx].estadoHubspot = "POR ACTUALIZAR";
+
+            const contenedorHs = document.getElementById(`hubspot_info_${idx}`);
+            if (contenedorHs) {
+              contenedorHs.innerHTML = generarHtmlTrazabilidadHubSpot("POR ACTUALIZAR", clientesCargados[idx].fechaActualizacion);
+            }
+            const contenedorAudit = document.getElementById(`audit_agencia_${idx}`);
+            if (contenedorAudit) {
+              contenedorAudit.innerHTML = generarHtmlAuditoriaAgencia(fechaNuevaGestion);
+            }
+          });
+
+          recalcularKPIs();
+          actualizarContadorFueraDeZona();
+          actualizarBotonGuardar();
+          ejecutarFiltrosLocales();
+          if (esModoAdmin) renderizarRadiografiaAgencias();
+          setTimeout(ocultarToast, 3000);
+        }).guardarCambios(cambios);
+    }
+
+    function abrirModalNuevoCliente() { document.getElementById("nuevoClienteModal").style.display = "flex"; }
+    function guardarNuevoCliente() {
+      const nuevo = {
+        empresa: document.getElementById("nc_empresa").value.trim(),
+        rif: document.getElementById("nc_rif").value.trim(),
+        contacto: "", telefono: "", email: "",
+        region: document.getElementById("nc_region").value.trim(),
+        agencia: document.getElementById("nc_agencia").value.trim(),
+        estatus: "", fechaEnvio: "", comentarios: "NUEVO REGISTRO"
+      };
+      if (!nuevo.empresa || !nuevo.rif || !nuevo.region || !nuevo.agencia) { 
+        mostrarAlertaModal("Por favor complete todos los campos obligatorios marcados con asterisco (*).", "Campos Requeridos"); 
+        return; 
+      }
+      document.getElementById("nuevoClienteModal").style.display = "none";
+      google.script.run
+        .withFailureHandler(err => mostrarAlertaModal("Error agregando cliente: " + err.message, "Error al Registrar"))
+        .withSuccessHandler(res => { 
+          mostrarToast(res.mensaje, "check"); 
+          recargarCatalogoBase(); 
+        }).agregarNuevoCliente(nuevo);
+    }
+
+    function confirmarEliminarCliente(i) {
+      clienteEliminarPendiente = clientesCargados[i];
+      if (!clienteEliminarPendiente) {
+        mostrarAlertaModal("Error al seleccionar el registro.", "Registro Inválido");
+        return;
+      }
+      document.getElementById("deleteMensaje").innerHTML = `¿Está seguro de dar de baja a <strong>${clienteEliminarPendiente.empresa}</strong> y moverlo al histórico de bajas?`;
+      document.getElementById("confirmDeleteModal").style.display = "flex";
+    }
+
+    function ejecutarEliminacionConfirmada() {
+      if (!clienteEliminarPendiente || !clienteEliminarPendiente.numFila || clienteEliminarPendiente.numFila <= 1) {
+        mostrarAlertaModal("No se puede eliminar la fila 1 de encabezados.", "Acción Denegada");
+        document.getElementById("confirmDeleteModal").style.display = "none";
+        return;
+      }
+
+      const btnEliminar = document.getElementById("btnConfirmarBajaModal");
+      if (btnEliminar) {
+        btnEliminar.disabled = true;
+        btnEliminar.textContent = "Procesando...";
+      }
+
+      mostrarToast("Archivando y dando de baja...", "clock");
+
+      google.script.run
+        .withFailureHandler(err => {
+          if (btnEliminar) {
+            btnEliminar.disabled = false;
+            btnEliminar.textContent = "Confirmar Baja";
+          }
+          document.getElementById("confirmDeleteModal").style.display = "none";
+          ocultarToast();
+          mostrarAlertaModal("Error al dar de baja: " + err.message, "Error al Eliminar");
+        })
+        .withSuccessHandler(res => {
+          if (btnEliminar) {
+            btnEliminar.disabled = false;
+            btnEliminar.textContent = "Confirmar Baja";
+          }
+          document.getElementById("confirmDeleteModal").style.display = "none";
+          mostrarToast(res && res.mensaje ? res.mensaje : "Cliente dado de baja", "trash");
+          iniciarAplicacionUnificada();
+        }).eliminarClienteFila(clienteEliminarPendiente.numFila, clienteEliminarPendiente.empresa);
+    }
+
+    function exportarExcel(tipo) {
+      const hoy = new Date().toISOString().slice(0, 10);
+
+      if (tipo === "COMPLETA") {
+        mostrarToast("Generando exportación completa...", "clock");
+        google.script.run
+          .withFailureHandler(err => {
+            ocultarToast();
+            mostrarAlertaModal("Error exportando BD completa: " + err.message, "Error de Exportación");
+          })
+          .withSuccessHandler(matriz => {
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(matriz), "BD_Completa");
+            XLSX.writeFile(wb, `BD_Cashea_Completa_${hoy}.xlsx`);
+            ocultarToast();
+            mostrarToast("BD Maestra exportada correctamente.", "check");
+            setTimeout(ocultarToast, 2000);
+          }).obtenerDatosExportacionCompleta();
+      } else {
+        const filas = [[
+          "Nombre de la Empresa", 
+          "RIF", 
+          "Contacto", 
+          "Teléfono", 
+          "Email", 
+          "Agencia BNC", 
+          "Región BNC", 
+          "Estatus de Gestión", 
+          "Fecha Envío Planillas", 
+          "Comentarios u Observaciones", 
+          "Estado en HubSpot", 
+          "Fecha de Actualización", 
+          "Fuera de Zona", 
+          "Fecha Gestión Agencia"
+        ]];
+
+        clientesCargados.forEach((c, i) => {
+          const tr = document.getElementById(`fila_${i}`);
+          if (!tr || tr.style.display !== "none") {
+            filas.push([
+              c.empresa || "",
+              c.rif || "",
+              c.contacto || "",
+              c.telefono || "",
+              c.email || "",
+              c.agencia || "",
+              c.region || "",
+              c.estatus || "",
+              c.fechaEnvio || "",
+              c.comentarios || "",
+              c.estadoHubspot || "",
+              c.fechaActualizacion || "",
+              c.fueraDeZona || "",
+              c.fechaGestionAgencia || ""
+            ]);
+          }
+        });
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(filas), "Vista_Filtrada");
+        XLSX.writeFile(wb, `Reporte_Cashea_Vista_${hoy}.xlsx`);
+        mostrarToast("Vista actual exportada correctamente.", "check");
+        setTimeout(ocultarToast, 2000);
+      }
+    }
+
+    function limpiarNumeroWhatsApp(t) {
+      if (!t) return "";
+      let l = String(t).replace(/\D/g, "");
+      if (l.startsWith("0")) l = "58" + l.substring(1);
+      else if (!l.startsWith("58") && l.length === 10) l = "58" + l;
+      return l;
+    }
+
+    function copiarTexto(t, e) { 
+      navigator.clipboard.writeText(t); 
+      mostrarToast(`${e} copiado al portapapeles`, "copy"); 
+      setTimeout(ocultarToast, 2000); 
+    }
+
+    function mostrarToast(m, tipoIcono = "check") { 
+      const t = document.getElementById("toast"); 
+      const svg = SVG_ICONS[tipoIcono] || SVG_ICONS.check;
+      t.innerHTML = `${svg} <span>${m}</span>`; 
+      t.style.display = "inline-flex"; 
+    }
+
+    function ocultarToast() { 
+      document.getElementById("toast").style.display = "none"; 
+    }
+  </script>
+</body>
+</html>
