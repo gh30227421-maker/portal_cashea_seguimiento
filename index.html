@@ -2,11 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Seguimiento Cashea - BNC</title>
+  <title>V.P.E. Banca Comercial | Gestión de Cartera</title>
   <!-- SheetJS para exportar .XLSX -->
   <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <!-- Google Fonts Inter -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
       --primary: #00205B;
@@ -20,7 +18,7 @@
       --border: #CBD5E1;
       --radius: 8px;
     }
-    * { box-sizing: border-box; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
     body { background-color: var(--bg); color: var(--text); margin: 0; padding: 0; font-size: 13px; -webkit-font-smoothing: antialiased; }
 
     ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -48,7 +46,7 @@
     }
     .brand { display: flex; align-items: center; gap: 16px; }
     .brand-logos { display: flex; align-items: center; gap: 14px; }
-    .brand-logos img.logo-bnc { height: 44px; width: auto; object-fit: contain; display: block; }
+    .brand-logos img.logo-bnc, .brand-logos .logo-bnc { height: 34px; width: auto; object-fit: contain; display: block; }
     .brand-logos .svg-cashea { height: 26px; width: auto; display: block; }
     .brand-logos .divider { color: #CBD5E1; font-weight: 300; font-size: 1.5rem; line-height: 1; }
     .brand-title-wrap h1 { font-size: 1.02rem; margin: 0; font-weight: 700; letter-spacing: -0.3px; color: var(--primary); }
@@ -534,7 +532,11 @@
   <header id="mainHeader">
     <div class="brand">
       <div class="brand-logos">
-        <img class="logo-bnc" src="https://lh3.googleusercontent.com/d/1HjtScLBGO0UnE7c0oQnr1o3zXjhfpHSU=s600" alt="Logo BNC" onerror="this.style.display='none'">
+        <svg class="logo-bnc" viewBox="0 0 100 36" height="34" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Logo BNC">
+          <rect width="100" height="36" rx="6" fill="#00205B"/>
+          <rect x="0" y="31" width="100" height="5" rx="2" fill="#009639"/>
+          <text x="50" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="21" font-weight="900" fill="#FFFFFF" text-anchor="middle" letter-spacing="2.5">BNC</text>
+        </svg>
         <span class="divider">|</span>
         <svg class="svg-cashea" viewBox="0 0 460 120" xmlns="http://www.w3.org/2000/svg">
           <rect x="0" y="5" width="110" height="110" rx="36" fill="#FDE047"/>
