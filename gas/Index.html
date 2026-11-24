@@ -544,7 +544,7 @@
         <div style="font-weight: 700; margin-bottom: 4px; color: #0F172A;">Criterios obligatorios para la depuración:</div>
         <div>✓ <strong>Estatus de Gestión:</strong> Lista</div>
         <div>✓ <strong>Planillas:</strong> Con fecha de envío registrada</div>
-        <div>✓ <strong>Sincronía CRM:</strong> Estado en HubSpot = ACTUALIZADO</div>
+        <div>✓ <strong>Sincronía CRM:</strong> Estado en HubSpot = ACTUALIZADO (incluye Reasignado) o YA ESTABA AVANZADO</div>
         <div style="margin-top: 6px; color: #009639; font-weight: 600;">✓ Los registros se trasladarán a la hoja <strong>Historico_Bajas</strong> con fecha de archivo.</div>
       </div>
       <div style="display: flex; gap: 8px;">
@@ -1385,11 +1385,11 @@
 
       if (estUpper === "POR ACTUALIZAR") {
         claseBadge = "hs-por-actualizar";
-      } else if (estUpper === "ACTUALIZADO") {
+      } else if (estUpper.includes("ACTUALIZADO")) {
         claseBadge = "hs-actualizado";
-      } else if (estUpper === "YA ESTABA AVANZADO") {
+      } else if (estUpper.includes("AVANZADO")) {
         claseBadge = "hs-avanzado";
-      } else if (estUpper === "NO EXISTE CLIENTE") {
+      } else if (estUpper.includes("NO EXISTE")) {
         claseBadge = "hs-no-existe";
       }
 
@@ -2155,7 +2155,10 @@
         const est = String(c.estatus || "").trim().toLowerCase();
         const fEnv = String(c.fechaEnvio || "").trim();
         const hs = String(c.estadoHubspot || "").trim().toUpperCase();
-        return est === "lista" && fEnv !== "" && fEnv !== "--" && hs === "ACTUALIZADO";
+        const esLista = est.includes("lista");
+        const tieneFechaEnvio = Boolean(fEnv && fEnv !== "--");
+        const esHubspotValido = hs !== "POR ACTUALIZAR" && (hs.includes("ACTUALIZADO") || hs.includes("AVANZADO"));
+        return esLista && tieneFechaEnvio && esHubspotValido;
       });
 
       const cant = candidatos.length;
@@ -2169,11 +2172,11 @@
         pMsg.innerHTML = `No se encontraron clientes activos ${etiquetaRegion} que cumplan simultáneamente con:<br><br>
           • Estatus: <strong>Lista</strong><br>
           • <strong>Fecha de envío de planillas</strong> registrada<br>
-          • Estado en HubSpot: <strong>ACTUALIZADO</strong><br><br>
-          <em>Todos los clientes en esta vista que requieren gestión o sincronización aún están pendientes.</em>`;
+          • Estado en HubSpot: <strong>ACTUALIZADO</strong> (incluye Reasignado) o <strong>YA ESTABA AVANZADO</strong><br><br>
+          <em>Los clientes en "POR ACTUALIZAR" o pendientes de gestión no serán depurados.</em>`;
         btnConf.style.display = "none";
       } else {
-        pMsg.innerHTML = `Se identificaron <strong style="color: #991B1B; font-size: 1.05rem;">${cant} cliente(s)</strong> ${etiquetaRegion} que ya completaron su ciclo (estatus Lista, planillas enviadas y confirmados por el bot en HubSpot).<br><br>
+        pMsg.innerHTML = `Se identificaron <strong style="color: #991B1B; font-size: 1.05rem;">${cant} cliente(s)</strong> ${etiquetaRegion} que completaron su ciclo (estatus Lista, planillas enviadas y confirmados o avanzados por el bot en HubSpot).<br><br>
           Al confirmar, estos registros saldrán de la cartera activa y se trasladarán a la hoja <strong>Historico_Bajas</strong> conservando su historial completo de auditoría.`;
         btnConf.style.display = "flex";
         btnConf.disabled = false;

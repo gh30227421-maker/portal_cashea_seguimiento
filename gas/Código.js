@@ -490,11 +490,11 @@ function depurarClientesListos(regionesSeleccionadas) {
       const fechaEnvioStr = fechaEnvioVal instanceof Date ? Utilities.formatDate(fechaEnvioVal, tz, "yyyy-MM-dd") : String(fechaEnvioVal || "").trim();
       const estadoHubspot = String(fila[10] || "").trim().toUpperCase();
 
-      const esLista = (estatus === "lista");
+      const esLista = estatus.includes("lista");
       const tieneFechaEnvio = Boolean(fechaEnvioStr && fechaEnvioStr !== "--");
-      const esActualizadoHubspot = (estadoHubspot === "ACTUALIZADO");
+      const esHubspotValido = estadoHubspot !== "POR ACTUALIZAR" && (estadoHubspot.includes("ACTUALIZADO") || estadoHubspot.includes("AVANZADO"));
 
-      if (esLista && tieneFechaEnvio && esActualizadoHubspot) {
+      if (esLista && tieneFechaEnvio && esHubspotValido) {
         const filaCopia = fila.slice(0, 14);
         while (filaCopia.length < 14) filaCopia.push("");
         filaCopia.push(marcaTiempoBaja); // Columna 15: Fecha de Baja / Archivo
@@ -510,7 +510,7 @@ function depurarClientesListos(regionesSeleccionadas) {
       return {
         exito: true,
         archivados: 0,
-        mensaje: "No se encontraron clientes que cumplan los criterios (Estatus: Lista, con fecha de planillas y Actualizados en HubSpot)."
+        mensaje: "No se encontraron clientes que cumplan los criterios (Estatus: Lista, con fecha de planillas y procesados en HubSpot como ACTUALIZADO, REASIGNADO o AVANZADO)."
       };
     }
 
