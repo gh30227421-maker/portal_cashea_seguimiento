@@ -9,6 +9,8 @@ function doGet(e) {
 
   if (params.accion) {
     try {
+      validarSecretoOpcional(params.api_secret);
+
       if (params.accion === "obtener_filtros") {
         return responderJSON(apiObtenerFiltros());
       } else if (params.accion === "obtener_lote") {
@@ -23,7 +25,7 @@ function doGet(e) {
 
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('Seguimiento Cashea - BNC')
+    .setTitle('V.P.E. Banca Comercial | Gestión de Cartera')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -35,8 +37,9 @@ function doPost(e) {
     }
 
     const payload = JSON.parse(e.postData.contents);
+    validarSecretoOpcional(payload._apiSecret || payload.api_secret);
 
-    // 1. Petición del Bot de Python (Intacta)
+    // 1. Petición del Bot de Python (Contrato 100% intacto)
     if (payload.accion === "reportar_resultados") {
       return responderJSON(apiReportarResultados(payload.resultados || []));
     }
@@ -49,13 +52,13 @@ function doPost(e) {
 
       if (fn === "obtenerPaqueteInicial") data = obtenerPaqueteInicial(args[0]);
       else if (fn === "obtenerClientes") data = obtenerClientes(args[0], args[1]);
-      else if (fn === "obtenerClientesAdmin") data = obtenerClientesAdmin(args[0]);
-      else if (fn === "guardarCambios") data = guardarCambios(args[0]);
-      else if (fn === "eliminarClienteFila") data = eliminarClienteFila(args[0], args[1]);
-      else if (fn === "agregarNuevoCliente") data = agregarNuevoCliente(args[0]);
+      else if (fn === "obtenerClientesAdmin") data = obtenerClientesAdmin(args[0], args[1]);
+      else if (fn === "guardarCambios") data = guardarCambios(args[0], args[1]);
+      else if (fn === "eliminarClienteFila") data = eliminarClienteFila(args[0], args[1], args[2], args[3], args[4]);
+      else if (fn === "agregarNuevoCliente") data = agregarNuevoCliente(args[0], args[1], args[2]);
       else if (fn === "verificarPinAdmin") data = verificarPinAdmin(args[0]);
-      else if (fn === "obtenerDatosExportacionCompleta") data = obtenerDatosExportacionCompleta();
-      else if (fn === "depurarClientesListos") data = depurarClientesListos(args[0]);
+      else if (fn === "obtenerDatosExportacionCompleta") data = obtenerDatosExportacionCompleta(args[0]);
+      else if (fn === "depurarClientesListos") data = depurarClientesListos(args[0], args[1], args[2]);
       else throw new Error("Función no reconocida: " + fn);
 
       return responderJSON({ status: "success", data: data });
@@ -74,9 +77,41 @@ function responderJSON(objeto) {
 
 /**
  * ============================================================================
- * 2. FUNCIONES DE BASE DE DATOS Y ESTRUCTURA DE HOJAS
+ * 2. SEGURIDAD LIGERA, BASE DE DATOS Y ESTRUCTURA DE HOJAS
  * ============================================================================
  */
+
+function obtenerPinAdminOficial() {
+  const props = PropertiesService.getScriptProperties();
+  let pin = props.getProperty("ADMIN_PIN");
+  if (!pin) {
+    pin = "2026";
+    try {
+      props.setProperty("ADMIN_PIN", pin);
+    } catch (e) {}
+  }
+  return String(pin).trim();
+}
+
+function verificarPinAdmin(pinIngresado) {
+  if (pinIngresado === undefined || pinIngresado === null) return false;
+  return String(pinIngresado).trim() === obtenerPinAdminOficial();
+}
+
+function exigirPinAdmin(pinIngresado) {
+  if (!verificarPinAdmin(pinIngresado)) {
+    throw new Error("Acceso denegado: El PIN de supervisor es inválido o su sesión expiró.");
+  }
+}
+
+function validarSecretoOpcional(secretoRecibido) {
+  const props = PropertiesService.getScriptProperties();
+  const secretoConfigurado = props.getProperty("GAS_API_SECRET");
+  // Solo exige secreto si el administrador decide definir GAS_API_SECRET en Propiedades del Script
+  if (secretoConfigurado && String(secretoRecibido || "").trim() !== String(secretoConfigurado).trim()) {
+    throw new Error("Solicitud no autorizada (API Secret inválido).");
+  }
+}
 
 function obtenerHojaBD() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -85,11 +120,15 @@ function obtenerHojaBD() {
 }
 
 function asegurarColumnas(sheet) {
-  const encabezados = sheet.getRange(1, 1, 1, 14).getValues()[0];
+  if (sheet.getMaxColumns() < 15) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), 15 - sheet.getMaxColumns());
+  }
+  const encabezados = sheet.getRange(1, 1, 1, 15).getValues()[0];
   if (String(encabezados[10] || "").trim() === "") sheet.getRange(1, 11).setValue("Estado en HubSpot");
   if (String(encabezados[11] || "").trim() === "") sheet.getRange(1, 12).setValue("Fecha de Actualización");
   if (String(encabezados[12] || "").trim() === "") sheet.getRange(1, 13).setValue("Fuera de Zona");
   if (String(encabezados[13] || "").trim() === "") sheet.getRange(1, 14).setValue("Fecha Gestión Agencia");
+  if (String(encabezados[14] || "").trim() === "") sheet.getRange(1, 15).setValue("Gestionado Por");
 }
 
 function obtenerHojaBajas() {
@@ -101,15 +140,125 @@ function obtenerHojaBajas() {
       "Nombre de la Empresa", "RIF", "Contacto", "Teléfono", "Email",
       "Agencia BNC", "Región BNC", "Estatus de Gestión", "Fecha Envío Planillas",
       "Comentarios u Observaciones", "Estado en HubSpot", "Fecha de Actualización",
-      "Fuera de Zona", "Fecha Gestión Agencia", "Fecha de Baja / Archivo"
+      "Fuera de Zona", "Fecha Gestión Agencia", "Fecha de Baja / Archivo",
+      "Gestionado / Archivado Por"
     ]);
+  } else {
+    if (sheetBajas.getMaxColumns() < 16) {
+      sheetBajas.insertColumnsAfter(sheetBajas.getMaxColumns(), 16 - sheetBajas.getMaxColumns());
+    }
+    const encBajas = sheetBajas.getRange(1, 1, 1, 16).getValues()[0];
+    if (String(encBajas[14] || "").trim() === "") sheetBajas.getRange(1, 15).setValue("Fecha de Baja / Archivo");
+    if (String(encBajas[15] || "").trim() === "") sheetBajas.getRange(1, 16).setValue("Gestionado / Archivado Por");
   }
   return sheetBajas;
 }
 
 /**
+ * Construye el arreglo estándar de 16 columnas para Historico_Bajas
+ * respetando las 15 columnas históricas originales + columna 16 de trazabilidad de usuario.
+ */
+function construirFilaBaja(filaOrigen, marcaTiempoBaja, actorBaja) {
+  const base14 = filaOrigen.slice(0, 14);
+  while (base14.length < 14) base14.push("");
+
+  const ultimoGestor = String(filaOrigen[14] || "").trim();
+  const responsableBaja = String(actorBaja || "").trim();
+  let trazaResponsable = ultimoGestor;
+
+  if (ultimoGestor && responsableBaja && ultimoGestor.toLowerCase() !== responsableBaja.toLowerCase()) {
+    trazaResponsable = `${ultimoGestor} (Archivado por: ${responsableBaja})`;
+  } else if (!ultimoGestor && responsableBaja) {
+    trazaResponsable = `Archivado por: ${responsableBaja}`;
+  }
+
+  return [...base14, marcaTiempoBaja, trazaResponsable];
+}
+
+/**
+ * Localiza de forma segura el número de fila (1-indexed) de un cliente verificando RIF y Empresa.
+ * Evita sobrescribir clientes equivocados si hubo bajas o depuraciones concurrentes.
+ */
+function resolverFilaSegura(datos, numFilaSugerida, rifEsperado, empresaEsperada) {
+  const filaNum = Number(numFilaSugerida);
+  const tieneIdentificador = Boolean(String(rifEsperado || "").trim() || String(empresaEsperada || "").trim());
+
+  // Compatibilidad con llamadas legadas del Bot que solo envían { fila }
+  if (!tieneIdentificador) {
+    return (filaNum > 1 && filaNum <= datos.length) ? filaNum : -1;
+  }
+
+  const rifNorm = normalizarRifComparacion(rifEsperado);
+  const empNorm = normalizarTextoComparacion(empresaEsperada);
+
+  // 1. Verificación rápida O(1) en la fila esperada
+  if (filaNum > 1 && filaNum <= datos.length) {
+    const filaActual = datos[filaNum - 1];
+    const rifFila = normalizarRifComparacion(filaActual[1]);
+    const empFila = normalizarTextoComparacion(filaActual[0]);
+
+    if ((rifNorm && rifFila === rifNorm) || (!rifNorm && empNorm && empFila === empNorm)) {
+      return filaNum;
+    }
+  }
+
+  // 2. La fila se desplazó por una eliminación previa: buscar coincidencia exacta RIF + Empresa
+  if (rifNorm && empNorm) {
+    for (let i = 1; i < datos.length; i++) {
+      if (normalizarRifComparacion(datos[i][1]) === rifNorm && normalizarTextoComparacion(datos[i][0]) === empNorm) {
+        return i + 1;
+      }
+    }
+  }
+
+  // 3. Respaldo por RIF único (si tiene longitud válida)
+  if (rifNorm && rifNorm.length >= 5) {
+    for (let i = 1; i < datos.length; i++) {
+      if (normalizarRifComparacion(datos[i][1]) === rifNorm) {
+        return i + 1;
+      }
+    }
+  }
+
+  // 4. Respaldo por nombre exacto de empresa cuando no tiene RIF cargado
+  if (!rifNorm && empNorm) {
+    for (let i = 1; i < datos.length; i++) {
+      if (normalizarTextoComparacion(datos[i][0]) === empNorm) {
+        return i + 1;
+      }
+    }
+  }
+
+  return -1;
+}
+
+/**
+ * Elimina múltiples filas agrupando rangos contiguos en orden descendente.
+ * Reduce drásticamente las llamadas a Google Sheets y evita timeouts en Vercel.
+ */
+function eliminarFilasEnBloquesDescendentes(sheet, listaFilas) {
+  if (!listaFilas || listaFilas.length === 0) return;
+
+  const unicasOrdenadas = Array.from(new Set(listaFilas.map(Number).filter(n => n > 1)))
+    .sort((a, b) => b - a);
+
+  let i = 0;
+  while (i < unicasOrdenadas.length) {
+    let finBloque = unicasOrdenadas[i];
+    let inicioBloque = finBloque;
+    while (i + 1 < unicasOrdenadas.length && unicasOrdenadas[i + 1] === inicioBloque - 1) {
+      inicioBloque = unicasOrdenadas[i + 1];
+      i++;
+    }
+    const cantidad = finBloque - inicioBloque + 1;
+    sheet.deleteRows(inicioBloque, cantidad);
+    i++;
+  }
+}
+
+/**
  * ============================================================================
- * 3. LÓGICA DE ENDPOINTS API PARA EL BOT
+ * 3. LÓGICA DE ENDPOINTS API PARA EL BOT DE PLAYWRIGHT (CONTRATO INTACTO)
  * ============================================================================
  */
 
@@ -197,42 +346,53 @@ function apiReportarResultados(resultados) {
 
   try {
     const sheet = obtenerHojaBD();
-    const maxFilas = sheet.getLastRow();
+    asegurarColumnas(sheet);
+    const datos = sheet.getDataRange().getValues();
     const marcaTiempo = obtenerMarcaTemporalActual();
     const filasParaBaja = [];
+    const filasValoresBajas = [];
+    let actualizadosReales = 0;
 
     resultados.forEach(item => {
-      const numFila = Number(item.fila);
-      if (!numFila || numFila <= 1 || numFila > maxFilas) return;
+      const filaReal = resolverFilaSegura(datos, item.fila, item.rif, item.empresa);
+      if (filaReal <= 1 || filaReal > datos.length) return;
 
       const estadoHubspot = String(item.estado_hubspot || "ACTUALIZADO").trim();
       const estatusFinal = String(item.estatus_final || "").trim();
 
-      sheet.getRange(numFila, 11, 1, 2).setValues([[estadoHubspot, marcaTiempo]]);
+      sheet.getRange(filaReal, 11, 1, 2).setValues([[estadoHubspot, marcaTiempo]]);
+      datos[filaReal - 1][10] = estadoHubspot;
+      datos[filaReal - 1][11] = marcaTiempo;
 
       if (estatusFinal) {
-        sheet.getRange(numFila, 8).setValue(estatusFinal);
+        sheet.getRange(filaReal, 8).setValue(estatusFinal);
+        datos[filaReal - 1][7] = estatusFinal;
       }
 
-      const estatusEval = (estatusFinal || String(sheet.getRange(numFila, 8).getValue() || "")).trim().toLowerCase();
+      actualizadosReales++;
+
+      const estatusEval = String(datos[filaReal - 1][7] || "").trim().toLowerCase();
       const requiereBaja = Boolean(item.es_baja) || estatusEval === "no procede" || estatusEval === "ilocalizable";
 
-      if (requiereBaja && !filasParaBaja.includes(numFila)) {
-        filasParaBaja.push(numFila);
+      if (requiereBaja && !filasParaBaja.includes(filaReal)) {
+        filasParaBaja.push(filaReal);
+        filasValoresBajas.push(construirFilaBaja(datos[filaReal - 1], marcaTiempo, "Bot HubSpot"));
       }
     });
 
-    filasParaBaja.sort((a, b) => b - a);
-    filasParaBaja.forEach(numFila => {
-      archivarYEliminarFilaInterno(sheet, numFila, marcaTiempo);
-    });
+    if (filasValoresBajas.length > 0) {
+      const sheetBajas = obtenerHojaBajas();
+      const ultimaBaja = sheetBajas.getLastRow();
+      sheetBajas.getRange(ultimaBaja + 1, 1, filasValoresBajas.length, 16).setValues(filasValoresBajas);
+      eliminarFilasEnBloquesDescendentes(sheet, filasParaBaja);
+    }
 
     SpreadsheetApp.flush();
 
     return {
       status: "success",
       mensaje: "Filas actualizadas y bajas procesadas correctamente",
-      actualizados: resultados.length,
+      actualizados: actualizadosReales,
       bajas_ejecutadas: filasParaBaja.length
     };
   } finally {
@@ -242,7 +402,7 @@ function apiReportarResultados(resultados) {
 
 /**
  * ============================================================================
- * 4. FUNCIONES DE LA WEB APP
+ * 4. FUNCIONES DE LA WEB APP (PORTAL VERCEL)
  * ============================================================================
  */
 
@@ -287,8 +447,14 @@ function obtenerPaqueteInicial(sesionGuardada) {
   }
 
   let clientes = null;
+  let requierePinAdmin = false;
+
   if (sesionGuardada && sesionGuardada.modo === "ADMIN" && Array.isArray(sesionGuardada.regiones)) {
-    clientes = obtenerClientesAdmin(sesionGuardada.regiones);
+    if (verificarPinAdmin(sesionGuardada.pin)) {
+      clientes = obtenerClientesAdmin(sesionGuardada.regiones, sesionGuardada.pin);
+    } else {
+      requierePinAdmin = true;
+    }
   } else if (sesionGuardada && sesionGuardada.modo === "AGENCIA" && sesionGuardada.region && sesionGuardada.agencia) {
     clientes = obtenerClientes(sesionGuardada.region, sesionGuardada.agencia);
   }
@@ -296,16 +462,30 @@ function obtenerPaqueteInicial(sesionGuardada) {
   return {
     catalogo: catalogo,
     catalogoMaestro: diccionarioMaestro,
-    clientes: clientes
+    clientes: clientes,
+    requierePinAdmin: requierePinAdmin
   };
 }
 
-function obtenerRegionesYAgencias() {
-  return obtenerPaqueteInicial(null).catalogo;
-}
-
-function obtenerCatalogoMaestroAgencias() {
-  return obtenerPaqueteInicial(null).catalogoMaestro;
+function mapearFilaAClienteWeb(fila, numFila, tz) {
+  return {
+    numFila: numFila,
+    empresa: String(fila[0] || "").trim(),
+    rif: String(fila[1] || "").trim(),
+    contacto: String(fila[2] || "").trim(),
+    telefono: String(fila[3] || "").trim(),
+    email: String(fila[4] || "").trim(),
+    agencia: String(fila[5] || "").trim(),
+    region: String(fila[6] || "").trim(),
+    estatus: String(fila[7] || "").trim(),
+    fechaEnvio: formatearFechaRapidaInput(fila[8], tz),
+    comentarios: String(fila[9] || "").trim(),
+    estadoHubspot: String(fila[10] || "").trim(),
+    fechaActualizacion: formatearFechaRapidaTexto(fila[11], tz),
+    fueraDeZona: String(fila[12] || "").trim(),
+    fechaGestionAgencia: formatearFechaRapidaTexto(fila[13], tz),
+    gestionadoPor: String(fila[14] || "").trim()
+  };
 }
 
 function obtenerClientes(regionFiltro, agenciaFiltro) {
@@ -327,29 +507,15 @@ function obtenerClientes(regionFiltro, agenciaFiltro) {
     const agencia = String(fila[5] || "").trim();
     if (!pedirTodasAgencias && agencia !== agenciaFiltro) continue;
 
-    resultado.push({
-      numFila: i + 1,
-      empresa: empresa,
-      rif: String(fila[1] || "").trim(),
-      contacto: String(fila[2] || "").trim(),
-      telefono: String(fila[3] || "").trim(),
-      email: String(fila[4] || "").trim(),
-      agencia: agencia,
-      region: region,
-      estatus: String(fila[7] || "").trim(),
-      fechaEnvio: formatearFechaRapidaInput(fila[8], tz),
-      comentarios: String(fila[9] || "").trim(),
-      estadoHubspot: String(fila[10] || "").trim(),
-      fechaActualizacion: formatearFechaRapidaTexto(fila[11], tz),
-      fueraDeZona: String(fila[12] || "").trim(),
-      fechaGestionAgencia: formatearFechaRapidaTexto(fila[13], tz)
-    });
+    resultado.push(mapearFilaAClienteWeb(fila, i + 1, tz));
   }
 
   return resultado;
 }
 
-function obtenerClientesAdmin(regionesSeleccionadas) {
+function obtenerClientesAdmin(regionesSeleccionadas, pinAdmin) {
+  exigirPinAdmin(pinAdmin);
+
   const sheet = obtenerHojaBD();
   const datos = sheet.getDataRange().getValues();
   const resultado = [];
@@ -364,59 +530,95 @@ function obtenerClientesAdmin(regionesSeleccionadas) {
     if (!empresa || esFilaEncabezadoOVacia(empresa, region)) continue;
 
     if (todas || setRegiones.has(region)) {
-      resultado.push({
-        numFila: i + 1,
-        empresa: empresa,
-        rif: String(fila[1] || "").trim(),
-        contacto: String(fila[2] || "").trim(),
-        telefono: String(fila[3] || "").trim(),
-        email: String(fila[4] || "").trim(),
-        agencia: String(fila[5] || "").trim(),
-        region: region,
-        estatus: String(fila[7] || "").trim(),
-        fechaEnvio: formatearFechaRapidaInput(fila[8], tz),
-        comentarios: String(fila[9] || "").trim(),
-        estadoHubspot: String(fila[10] || "").trim(),
-        fechaActualizacion: formatearFechaRapidaTexto(fila[11], tz),
-        fueraDeZona: String(fila[12] || "").trim(),
-        fechaGestionAgencia: formatearFechaRapidaTexto(fila[13], tz)
-      });
+      resultado.push(mapearFilaAClienteWeb(fila, i + 1, tz));
     }
   }
 
   return resultado;
 }
 
-function guardarCambios(cambios) {
+function guardarCambios(cambios, usuarioAccion) {
+  if (!Array.isArray(cambios) || cambios.length === 0) {
+    return { exito: true, mensaje: "No se recibieron cambios para procesar." };
+  }
+
+  const gestorLimpio = limpiarNombrePersona(usuarioAccion);
+  if (!gestorLimpio) {
+    throw new Error("Debe indicar su Nombre y Apellido para registrar quién realizó la actualización.");
+  }
+
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
 
   try {
     const sheet = obtenerHojaBD();
     asegurarColumnas(sheet);
+    const datos = sheet.getDataRange().getValues();
     const marcaTiempoGestion = obtenerMarcaTemporalActual();
 
-    cambios.forEach(item => {
-      const fila = Number(item.numFila);
-      if (fila && fila > 1) {
-        if (item.agencia !== undefined) sheet.getRange(fila, 6).setValue(item.agencia);
-        if (item.region !== undefined) sheet.getRange(fila, 7).setValue(item.region);
-        if (item.estatus !== undefined) sheet.getRange(fila, 8).setValue(item.estatus);
-        if (item.fechaEnvio !== undefined) sheet.getRange(fila, 9).setValue(item.fechaEnvio);
-        if (item.comentarios !== undefined) sheet.getRange(fila, 10).setValue(item.comentarios);
-        if (item.fueraDeZona !== undefined) sheet.getRange(fila, 13).setValue(item.fueraDeZona);
+    let guardados = 0;
+    let marcadosHubspot = 0;
+    const noEncontrados = [];
 
-        sheet.getRange(fila, 14).setValue(marcaTiempoGestion);
-        sheet.getRange(fila, 11).setValue("POR ACTUALIZAR");
+    cambios.forEach(item => {
+      const filaReal = resolverFilaSegura(datos, item.numFila, item.rif, item.empresa);
+      if (filaReal <= 1 || filaReal > datos.length) {
+        noEncontrados.push(item.empresa || item.rif || ("Fila " + item.numFila));
+        return;
       }
+
+      const filaActual = datos[filaReal - 1];
+      const nuevaAgencia = item.agencia !== undefined ? item.agencia : String(filaActual[5] || "");
+      const nuevaRegion = item.region !== undefined ? item.region : String(filaActual[6] || "");
+      const nuevoEstatus = item.estatus !== undefined ? item.estatus : String(filaActual[7] || "");
+      const nuevaFechaEnvio = item.fechaEnvio !== undefined ? item.fechaEnvio : filaActual[8];
+      const nuevosComentarios = item.comentarios !== undefined ? item.comentarios : String(filaActual[9] || "");
+      const nuevoFueraZona = item.fueraDeZona !== undefined ? item.fueraDeZona : String(filaActual[12] || "");
+
+      // Solo marcamos POR ACTUALIZAR en HubSpot si el cliente tiene un estatus de gestión válido
+      const tieneEstatusValido = esEstatusGestionadoValido(nuevoEstatus);
+      const estadoHubspotActual = String(filaActual[10] || "").trim();
+      const nuevoEstadoHubspot = tieneEstatusValido ? "POR ACTUALIZAR" : estadoHubspotActual;
+      if (tieneEstatusValido) marcadosHubspot++;
+
+      const fechaActualizacionBot = filaActual[11] || "";
+
+      // Escritura optimizada de 10 columnas contiguas (Col 6 a Col 15) en 1 sola llamada por fila
+      const bloqueCols6a15 = [[
+        nuevaAgencia,
+        nuevaRegion,
+        nuevoEstatus,
+        nuevaFechaEnvio,
+        nuevosComentarios,
+        nuevoEstadoHubspot,
+        fechaActualizacionBot,
+        nuevoFueraZona,
+        marcaTiempoGestion,
+        gestorLimpio
+      ]];
+
+      sheet.getRange(filaReal, 6, 1, 10).setValues(bloqueCols6a15);
+      guardados++;
     });
 
     SpreadsheetApp.flush();
 
+    let msg = `Se guardaron ${guardados} registro(s) por ${gestorLimpio}`;
+    if (marcadosHubspot > 0) {
+      msg += ` (${marcadosHubspot} marcado(s) POR ACTUALIZAR en HubSpot).`;
+    } else {
+      msg += ".";
+    }
+    if (noEncontrados.length > 0) {
+      msg += ` Nota: ${noEncontrados.length} registro(s) ya habían sido dados de baja previamente (${noEncontrados.join(", ")}).`;
+    }
+
     return {
       exito: true,
-      mensaje: "Se guardaron " + cambios.length + " registro(s) y se marcaron POR ACTUALIZAR en HubSpot.",
-      fechaGestion: marcaTiempoGestion
+      mensaje: msg,
+      fechaGestion: marcaTiempoGestion,
+      gestionadoPor: gestorLimpio,
+      guardados: guardados
     };
   } catch (error) {
     throw new Error("Error al guardar: " + error.message);
@@ -425,22 +627,34 @@ function guardarCambios(cambios) {
   }
 }
 
-function eliminarClienteFila(numFila, nombreEmpresa) {
+function eliminarClienteFila(numFila, nombreEmpresa, rifEmpresa, usuarioAccion, pinAdmin) {
+  exigirPinAdmin(pinAdmin);
+  const responsable = limpiarNombrePersona(usuarioAccion) || "Supervisor";
+
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
 
   try {
     const sheet = obtenerHojaBD();
-    const fila = Number(numFila);
+    asegurarColumnas(sheet);
+    const datos = sheet.getDataRange().getValues();
+    const filaReal = resolverFilaSegura(datos, numFila, rifEmpresa, nombreEmpresa);
 
-    if (!fila || fila <= 1) throw new Error("No se puede eliminar la fila de encabezado.");
-    if (fila > sheet.getLastRow()) throw new Error("La fila solicitada ya no existe.");
+    if (filaReal <= 1 || filaReal > datos.length) {
+      throw new Error("El cliente \"" + (nombreEmpresa || "") + "\" ya no se encuentra en la cartera activa (posiblemente ya fue archivado).");
+    }
 
-    archivarYEliminarFilaInterno(sheet, fila, obtenerMarcaTemporalActual());
+    const marcaBaja = obtenerMarcaTemporalActual();
+    const sheetBajas = obtenerHojaBajas();
+    const filaArchivada = construirFilaBaja(datos[filaReal - 1], marcaBaja, responsable);
+
+    sheetBajas.appendRow(filaArchivada);
+    sheet.deleteRow(filaReal);
+    SpreadsheetApp.flush();
 
     return {
       exito: true,
-      mensaje: "Cliente \"" + (nombreEmpresa || "") + "\" movido al histórico de bajas correctamente."
+      mensaje: `Cliente "${nombreEmpresa || ""}" movido al histórico de bajas por ${responsable}.`
     };
   } catch (error) {
     throw new Error(error.message);
@@ -449,24 +663,16 @@ function eliminarClienteFila(numFila, nombreEmpresa) {
   }
 }
 
-function archivarYEliminarFilaInterno(sheetActiva, numFila, marcaTiempoBaja) {
-  const sheetBajas = obtenerHojaBajas();
-  const numCols = Math.max(sheetActiva.getLastColumn(), 14);
-  const valoresFila = sheetActiva.getRange(numFila, 1, 1, numCols).getValues()[0];
+function depurarClientesListos(regionesSeleccionadas, usuarioAccion, pinAdmin) {
+  exigirPinAdmin(pinAdmin);
+  const responsable = limpiarNombrePersona(usuarioAccion) || "Supervisor";
 
-  while (valoresFila.length < 14) valoresFila.push("");
-  valoresFila.push(marcaTiempoBaja);
-
-  sheetBajas.appendRow(valoresFila);
-  sheetActiva.deleteRow(numFila);
-}
-
-function depurarClientesListos(regionesSeleccionadas) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
 
   try {
     const sheet = obtenerHojaBD();
+    asegurarColumnas(sheet);
     const sheetBajas = obtenerHojaBajas();
     const datos = sheet.getDataRange().getValues();
     const tz = Session.getScriptTimeZone() || "America/Caracas";
@@ -486,8 +692,7 @@ function depurarClientesListos(regionesSeleccionadas) {
       if (!todas && !setRegiones.has(region)) continue;
 
       const estatus = String(fila[7] || "").trim().toLowerCase();
-      const fechaEnvioVal = fila[8];
-      const fechaEnvioStr = fechaEnvioVal instanceof Date ? Utilities.formatDate(fechaEnvioVal, tz, "yyyy-MM-dd") : String(fechaEnvioVal || "").trim();
+      const fechaEnvioStr = formatearFechaRapidaInput(fila[8], tz);
       const estadoHubspot = String(fila[10] || "").trim().toUpperCase();
 
       const esLista = estatus.includes("lista");
@@ -495,13 +700,9 @@ function depurarClientesListos(regionesSeleccionadas) {
       const esHubspotValido = estadoHubspot !== "POR ACTUALIZAR" && (estadoHubspot.includes("ACTUALIZADO") || estadoHubspot.includes("AVANZADO"));
 
       if (esLista && tieneFechaEnvio && esHubspotValido) {
-        const filaCopia = fila.slice(0, 14);
-        while (filaCopia.length < 14) filaCopia.push("");
-        filaCopia.push(marcaTiempoBaja); // Columna 15: Fecha de Baja / Archivo
         filasParaArchivar.push({
           numFila: i + 1,
-          empresa: empresa,
-          valores: filaCopia
+          valores: construirFilaBaja(fila, marcaTiempoBaja, responsable)
         });
       }
     }
@@ -514,23 +715,21 @@ function depurarClientesListos(regionesSeleccionadas) {
       };
     }
 
-    // 1. Guardar en bloque en Historico_Bajas
+    // 1. Guardar en bloque en Historico_Bajas (16 columnas)
     const filasValores = filasParaArchivar.map(item => item.valores);
     const ultimaFilaBajas = sheetBajas.getLastRow();
-    sheetBajas.getRange(ultimaFilaBajas + 1, 1, filasValores.length, 15).setValues(filasValores);
+    sheetBajas.getRange(ultimaFilaBajas + 1, 1, filasValores.length, 16).setValues(filasValores);
 
-    // 2. Eliminar de la hoja activa en orden descendente para no alterar los índices de fila
-    filasParaArchivar.sort((a, b) => b.numFila - a.numFila);
-    filasParaArchivar.forEach(item => {
-      sheet.deleteRow(item.numFila);
-    });
+    // 2. Eliminar de la hoja activa agrupando bloques contiguos en orden descendente
+    const indicesEliminar = filasParaArchivar.map(item => item.numFila);
+    eliminarFilasEnBloquesDescendentes(sheet, indicesEliminar);
 
     SpreadsheetApp.flush();
 
     return {
       exito: true,
       archivados: filasParaArchivar.length,
-      mensaje: `Se depuraron y archivaron exitosamente ${filasParaArchivar.length} cliente(s) en la hoja Historico_Bajas.`
+      mensaje: `Se depuraron y archivaron exitosamente ${filasParaArchivar.length} cliente(s) en Historico_Bajas (Ejecutado por: ${responsable}).`
     };
   } catch (error) {
     throw new Error("Error al depurar clientes: " + error.message);
@@ -539,75 +738,107 @@ function depurarClientesListos(regionesSeleccionadas) {
   }
 }
 
-function agregarNuevoCliente(nuevo) {
+function agregarNuevoCliente(nuevo, usuarioAccion, pinAdmin) {
+  exigirPinAdmin(pinAdmin);
+  const responsable = limpiarNombrePersona(usuarioAccion) || "Supervisor";
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
   try {
     const sheet = obtenerHojaBD();
+    asegurarColumnas(sheet);
+    const datos = sheet.getDataRange().getValues();
+
+    const empresaLimpia = String(nuevo.empresa || "").trim();
+    const rifLimpio = String(nuevo.rif || "").trim().toUpperCase();
+    const regionLimpia = String(nuevo.region || "").trim();
+    const agenciaLimpia = String(nuevo.agencia || "").trim();
+
+    if (!empresaLimpia || !rifLimpio || !regionLimpia || !agenciaLimpia) {
+      throw new Error("Empresa, RIF, Región y Agencia son obligatorios.");
+    }
+
+    // Validar RIF duplicado en la cartera activa
+    const rifComparar = normalizarRifComparacion(rifLimpio);
+    if (rifComparar.length >= 5) {
+      for (let i = 1; i < datos.length; i++) {
+        if (normalizarRifComparacion(datos[i][1]) === rifComparar) {
+          const empExistente = String(datos[i][0] || "").trim();
+          const agExistente = String(datos[i][5] || "").trim();
+          throw new Error(`Ya existe un cliente activo con el RIF ${rifLimpio} ("${empExistente}" asignado a ${agExistente}).`);
+        }
+      }
+    }
+
     const tieneEstatus = esEstatusGestionadoValido(nuevo.estatus);
     const ahora = obtenerMarcaTemporalActual();
 
     const nuevaFila = [
-      nuevo.empresa,
-      nuevo.rif,
-      nuevo.contacto || "",
-      nuevo.telefono || "",
-      nuevo.email || "",
-      nuevo.agencia,
-      nuevo.region,
-      nuevo.estatus || "",
-      nuevo.fechaEnvio || "",
-      nuevo.comentarios || "NUEVO REGISTRO",
+      empresaLimpia,
+      rifLimpio,
+      String(nuevo.contacto || "").trim(),
+      String(nuevo.telefono || "").trim(),
+      String(nuevo.email || "").trim(),
+      agenciaLimpia,
+      regionLimpia,
+      String(nuevo.estatus || "").trim(),
+      String(nuevo.fechaEnvio || "").trim(),
+      String(nuevo.comentarios || "NUEVO REGISTRO").trim(),
       tieneEstatus ? "POR ACTUALIZAR" : "",
       "",
       "",
-      ahora
+      ahora,
+      responsable
     ];
 
     sheet.appendRow(nuevaFila);
+    SpreadsheetApp.flush();
 
     return {
       exito: true,
-      mensaje: "Cliente agregado satisfactoriamente."
+      mensaje: `Cliente "${empresaLimpia}" registrado satisfactoriamente por ${responsable}.`
     };
   } catch (error) {
-    throw new Error("Error al agregar cliente: " + error.message);
+    throw new Error(error.message);
+  } finally {
+    lock.releaseLock();
   }
 }
 
-function verificarPinAdmin(pinIngresado) {
-  const PIN_OFICIAL = "2026";
-  return String(pinIngresado).trim() === PIN_OFICIAL;
-}
+function obtenerDatosExportacionCompleta(pinAdmin) {
+  exigirPinAdmin(pinAdmin);
 
-function obtenerDatosExportacionCompleta() {
-  const sheet = obtenerHojaBD();
-  const datos = sheet.getDataRange().getValues();
   const tz = Session.getScriptTimeZone() || "America/Caracas";
-  
-  const resultado = [[
-    "Nombre de la Empresa", 
-    "RIF", 
-    "Contacto", 
-    "Teléfono", 
-    "Email", 
-    "Agencia BNC", 
-    "Región BNC", 
-    "Estatus de Gestión", 
-    "Fecha Envío Planillas", 
-    "Comentarios u Observaciones", 
-    "Estado en HubSpot", 
-    "Fecha de Actualización", 
-    "Fuera de Zona", 
-    "Fecha Gestión Agencia"
+  const sheet = obtenerHojaBD();
+  asegurarColumnas(sheet);
+  const datos = sheet.getDataRange().getValues();
+
+  const activa = [[
+    "Nombre de la Empresa",
+    "RIF",
+    "Contacto",
+    "Teléfono",
+    "Email",
+    "Agencia BNC",
+    "Región BNC",
+    "Estatus de Gestión",
+    "Fecha Envío Planillas",
+    "Comentarios u Observaciones",
+    "Estado en HubSpot",
+    "Fecha de Actualización",
+    "Fuera de Zona",
+    "Fecha Gestión Agencia",
+    "Gestionado Por"
   ]];
 
   for (let i = 1; i < datos.length; i++) {
     const fila = datos[i];
     const empresa = String(fila[0] || "").trim();
     const region = String(fila[6] || "").trim();
-
     if (esFilaEncabezadoOVacia(empresa, region)) continue;
 
-    resultado.push([
+    activa.push([
       empresa,
       String(fila[1] || "").trim(),
       String(fila[2] || "").trim(),
@@ -621,11 +852,62 @@ function obtenerDatosExportacionCompleta() {
       String(fila[10] || "").trim(),
       formatearFechaRapidaTexto(fila[11], tz),
       String(fila[12] || "").trim(),
-      formatearFechaRapidaTexto(fila[13], tz)
+      formatearFechaRapidaTexto(fila[13], tz),
+      String(fila[14] || "").trim()
     ]);
   }
 
-  return resultado;
+  // Exportar también Historico_Bajas como segunda hoja del libro Excel
+  const sheetBajas = obtenerHojaBajas();
+  const datosBajas = sheetBajas.getDataRange().getValues();
+  const bajas = [[
+    "Nombre de la Empresa",
+    "RIF",
+    "Contacto",
+    "Teléfono",
+    "Email",
+    "Agencia BNC",
+    "Región BNC",
+    "Estatus de Gestión",
+    "Fecha Envío Planillas",
+    "Comentarios u Observaciones",
+    "Estado en HubSpot",
+    "Fecha de Actualización",
+    "Fuera de Zona",
+    "Fecha Gestión Agencia",
+    "Fecha de Baja / Archivo",
+    "Gestionado / Archivado Por"
+  ]];
+
+  for (let j = 1; j < datosBajas.length; j++) {
+    const fb = datosBajas[j];
+    const empB = String(fb[0] || "").trim();
+    if (!empB) continue;
+
+    bajas.push([
+      empB,
+      String(fb[1] || "").trim(),
+      String(fb[2] || "").trim(),
+      String(fb[3] || "").trim(),
+      String(fb[4] || "").trim(),
+      String(fb[5] || "").trim(),
+      String(fb[6] || "").trim(),
+      String(fb[7] || "").trim(),
+      formatearFechaRapidaInput(fb[8], tz),
+      String(fb[9] || "").trim(),
+      String(fb[10] || "").trim(),
+      formatearFechaRapidaTexto(fb[11], tz),
+      String(fb[12] || "").trim(),
+      formatearFechaRapidaTexto(fb[13], tz),
+      formatearFechaRapidaTexto(fb[14], tz),
+      String(fb[15] || "").trim()
+    ]);
+  }
+
+  return {
+    activa: activa,
+    bajas: bajas
+  };
 }
 
 /**
@@ -633,6 +915,21 @@ function obtenerDatosExportacionCompleta() {
  * 5. UTILIDADES RÁPIDAS EN MEMORIA
  * ============================================================================
  */
+
+function limpiarNombrePersona(nombre) {
+  return String(nombre || "")
+    .replace(/[<>"]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizarRifComparacion(rif) {
+  return String(rif || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function normalizarTextoComparacion(txt) {
+  return String(txt || "").toUpperCase().replace(/\s+/g, " ").trim();
+}
 
 function esFilaEncabezadoOVacia(empresa, region) {
   if (!empresa) return true;
@@ -658,7 +955,16 @@ function formatearFechaRapidaInput(valorFecha, tz) {
   if (!valorFecha) return "";
   if (typeof valorFecha === "string") {
     const s = valorFecha.trim();
-    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // Soportar fechas pegadas como DD/MM/YYYY o DD-MM-YYYY en el Excel
+    const mDMY = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (mDMY) {
+      const dd = mDMY[1].padStart(2, "0");
+      const mm = mDMY[2].padStart(2, "0");
+      const yyyy = mDMY[3];
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return "";
   }
   if (valorFecha instanceof Date && !isNaN(valorFecha.getTime())) {
     return Utilities.formatDate(valorFecha, tz, "yyyy-MM-dd");

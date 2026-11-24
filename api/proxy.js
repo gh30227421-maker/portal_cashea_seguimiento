@@ -1,8 +1,23 @@
 export default async function handler(req, res) {
-  // 1. Cabeceras CORS adecuadas para permitir peticiones desde cualquier origen y preflight OPTIONS
+  // 1. Cabeceras CORS seguras (restringidas a dominios propios en Vercel y entorno local)
+  const origin = req.headers.origin || '';
+  const host = req.headers.host || '';
+  const esOrigenPermitido =
+    !origin ||
+    origin.endsWith('.vercel.app') ||
+    origin.includes('localhost') ||
+    origin.includes('127.0.0.1') ||
+    (host && origin.includes(host));
+
+  if (origin && esOrigenPermitido) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  } else if (!origin) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
@@ -10,7 +25,14 @@ export default async function handler(req, res) {
 
   // Manejar preflight OPTIONS
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return esOrigenPermitido ? res.status(200).end() : res.status(403).end();
+  }
+
+  if (!esOrigenPermitido) {
+    return res.status(403).json({
+      status: 'error',
+      mensaje: 'Origen no autorizado para consumir este proxy.'
+    });
   }
 
   // Validar método POST
@@ -22,12 +44,26 @@ export default async function handler(req, res) {
   }
 
   // URL del script de Google Apps Script (terminada en /exec)
-  // Puede configurarse mediante la variable de entorno GOOGLE_SCRIPT_URL en Vercel o directamente aquí
   const SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzJikXwP9p37vyf-c7XXmmP39p_rPbeQbMj5E-h9VXMAfJ6kwvtWPwG3unJaY6Q88ld/exec";
 
   try {
-    // Asegurar que el cuerpo de la petición se envíe como cadena JSON limpia
-    const payload = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+    let bodyObj = {};
+    if (typeof req.body === 'string') {
+      try {
+        bodyObj = JSON.parse(req.body);
+      } catch {
+        bodyObj = {};
+      }
+    } else if (req.body && typeof req.body === 'object') {
+      bodyObj = { ...req.body };
+    }
+
+    // Inyectar token compartido opcional si está configurado en variables de entorno
+    if (process.env.GAS_API_SECRET) {
+      bodyObj._apiSecret = process.env.GAS_API_SECRET;
+    }
+
+    const payload = JSON.stringify(bodyObj);
 
     // Petición a Google Apps Script siguiendo redirecciones HTTP 302/307
     const response = await fetch(SCRIPT_URL, {
@@ -44,7 +80,6 @@ export default async function handler(req, res) {
       const data = JSON.parse(responseText);
       return res.status(200).json(data);
     } catch (parseError) {
-      // Capturar casos donde Google devuelve HTML (error de permisos, cuota o login)
       console.error('La respuesta de Google Apps Script no es un JSON válido:', responseText);
 
       let mensajeError = 'Google Apps Script no devolvió un JSON válido.';
