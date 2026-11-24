@@ -55,6 +55,7 @@ function doPost(e) {
       else if (fn === "agregarNuevoCliente") data = agregarNuevoCliente(args[0]);
       else if (fn === "verificarPinAdmin") data = verificarPinAdmin(args[0]);
       else if (fn === "obtenerDatosExportacionCompleta") data = obtenerDatosExportacionCompleta();
+      else if (fn === "depurarClientesListos") data = depurarClientesListos(args[0]);
       else throw new Error("Función no reconocida: " + fn);
 
       return responderJSON({ status: "success", data: data });
@@ -458,6 +459,84 @@ function archivarYEliminarFilaInterno(sheetActiva, numFila, marcaTiempoBaja) {
 
   sheetBajas.appendRow(valoresFila);
   sheetActiva.deleteRow(numFila);
+}
+
+function depurarClientesListos(regionesSeleccionadas) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    const sheet = obtenerHojaBD();
+    const sheetBajas = obtenerHojaBajas();
+    const datos = sheet.getDataRange().getValues();
+    const tz = Session.getScriptTimeZone() || "America/Caracas";
+    const marcaTiempoBaja = obtenerMarcaTemporalActual();
+
+    const todas = !regionesSeleccionadas || regionesSeleccionadas.includes("TODAS");
+    const setRegiones = todas ? null : new Set(regionesSeleccionadas);
+
+    const filasParaArchivar = [];
+
+    for (let i = 1; i < datos.length; i++) {
+      const fila = datos[i];
+      const empresa = String(fila[0] || "").trim();
+      const region = String(fila[6] || "").trim();
+      if (!empresa || esFilaEncabezadoOVacia(empresa, region)) continue;
+
+      if (!todas && !setRegiones.has(region)) continue;
+
+      const estatus = String(fila[7] || "").trim().toLowerCase();
+      const fechaEnvioVal = fila[8];
+      const fechaEnvioStr = fechaEnvioVal instanceof Date ? Utilities.formatDate(fechaEnvioVal, tz, "yyyy-MM-dd") : String(fechaEnvioVal || "").trim();
+      const estadoHubspot = String(fila[10] || "").trim().toUpperCase();
+
+      const esLista = (estatus === "lista");
+      const tieneFechaEnvio = Boolean(fechaEnvioStr && fechaEnvioStr !== "--");
+      const esActualizadoHubspot = (estadoHubspot === "ACTUALIZADO");
+
+      if (esLista && tieneFechaEnvio && esActualizadoHubspot) {
+        const filaCopia = fila.slice(0, 14);
+        while (filaCopia.length < 14) filaCopia.push("");
+        filaCopia.push(marcaTiempoBaja); // Columna 15: Fecha de Baja / Archivo
+        filasParaArchivar.push({
+          numFila: i + 1,
+          empresa: empresa,
+          valores: filaCopia
+        });
+      }
+    }
+
+    if (filasParaArchivar.length === 0) {
+      return {
+        exito: true,
+        archivados: 0,
+        mensaje: "No se encontraron clientes que cumplan los criterios (Estatus: Lista, con fecha de planillas y Actualizados en HubSpot)."
+      };
+    }
+
+    // 1. Guardar en bloque en Historico_Bajas
+    const filasValores = filasParaArchivar.map(item => item.valores);
+    const ultimaFilaBajas = sheetBajas.getLastRow();
+    sheetBajas.getRange(ultimaFilaBajas + 1, 1, filasValores.length, 15).setValues(filasValores);
+
+    // 2. Eliminar de la hoja activa en orden descendente para no alterar los índices de fila
+    filasParaArchivar.sort((a, b) => b.numFila - a.numFila);
+    filasParaArchivar.forEach(item => {
+      sheet.deleteRow(item.numFila);
+    });
+
+    SpreadsheetApp.flush();
+
+    return {
+      exito: true,
+      archivados: filasParaArchivar.length,
+      mensaje: `Se depuraron y archivaron exitosamente ${filasParaArchivar.length} cliente(s) en la hoja Historico_Bajas.`
+    };
+  } catch (error) {
+    throw new Error("Error al depurar clientes: " + error.message);
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function agregarNuevoCliente(nuevo) {

@@ -94,6 +94,8 @@
     .btn-admin-lock { background-color: var(--primary); color: white; }
     .btn-excel { background-color: var(--secondary); color: white; }
     .btn-add { background-color: var(--primary); color: white; }
+    .btn-depurar { background-color: #991B1B; color: white; }
+    .btn-depurar:hover { background-color: #7F1D1D; }
     
     .btn-danger-action {
       background: #FEE2E2; border: 1px solid #FCA5A5; color: #B91C1C;
@@ -528,6 +530,30 @@
     </div>
   </div>
 
+  <!-- MODAL 5: Depurar Clientes Listos -->
+  <div id="modalDepurarListas" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="border-top: 4px solid #991B1B; max-width: 480px;">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <div style="background: #FEE2E2; color: #991B1B; padding: 8px; border-radius: 8px; display: flex;">
+          <svg style="width: 22px; height: 22px; stroke: currentColor; stroke-width: 2; fill: none;" viewBox="0 0 24 24"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg>
+        </div>
+        <h2 style="color: #991B1B; margin: 0; font-size: 1.15rem;">Depuración de Cartera Lista</h2>
+      </div>
+      <p id="mensajeDepurarListas" style="font-size: 0.88rem; line-height: 1.5; color: #334155; margin-bottom: 14px;"></p>
+      <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; font-size: 0.78rem; color: #475569; margin-bottom: 16px;">
+        <div style="font-weight: 700; margin-bottom: 4px; color: #0F172A;">Criterios obligatorios para la depuración:</div>
+        <div>✓ <strong>Estatus de Gestión:</strong> Lista</div>
+        <div>✓ <strong>Planillas:</strong> Con fecha de envío registrada</div>
+        <div>✓ <strong>Sincronía CRM:</strong> Estado en HubSpot = ACTUALIZADO</div>
+        <div style="margin-top: 6px; color: #009639; font-weight: 600;">✓ Los registros se trasladarán a la hoja <strong>Historico_Bajas</strong> con fecha de archivo.</div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn-clear-filter" style="flex: 1; justify-content: center;" onclick="document.getElementById('modalDepurarListas').style.display='none'">Cancelar</button>
+        <button class="btn-save" id="btnConfirmarDepuracion" style="flex: 1.5; background-color: #991B1B; justify-content: center;" onclick="ejecutarDepuracionConfirmada()">Confirmar y Archivar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- CABECERA INSTITUCIONAL -->
   <header id="mainHeader">
     <div class="brand">
@@ -577,6 +603,10 @@
       <button class="btn-add" onclick="abrirModalNuevoCliente()">
         <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
         Agregar Cliente
+      </button>
+      <button class="btn-depurar" id="btnDepurarAdmin" onclick="abrirModalDepurarListas()" title="Depurar clientes con estatus 'Lista', planillas enviadas y confirmados en HubSpot">
+        <svg viewBox="0 0 24 24"><path d="M21 8v13H3V8"></path><path d="M1 3h22v5H1z"></path><path d="M10 12h4"></path></svg>
+        Depurar Casos Listos
       </button>
       <button class="btn-excel" onclick="exportarExcel('VISTA')">
         <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -2116,6 +2146,75 @@
           mostrarToast(res && res.mensaje ? res.mensaje : "Cliente dado de baja", "trash");
           iniciarAplicacionUnificada();
         }).eliminarClienteFila(clienteEliminarPendiente.numFila, clienteEliminarPendiente.empresa);
+    }
+
+    function abrirModalDepurarListas() {
+      if (!esModoAdmin) return;
+
+      const candidatos = clientesCargados.filter(c => {
+        const est = String(c.estatus || "").trim().toLowerCase();
+        const fEnv = String(c.fechaEnvio || "").trim();
+        const hs = String(c.estadoHubspot || "").trim().toUpperCase();
+        return est === "lista" && fEnv !== "" && fEnv !== "--" && hs === "ACTUALIZADO";
+      });
+
+      const cant = candidatos.length;
+      const todas = !regionesAdminSeleccionadas || regionesAdminSeleccionadas.includes("TODAS");
+      const etiquetaRegion = todas ? "en todas las regiones" : `en ${regionesAdminSeleccionadas.join(", ")}`;
+
+      const pMsg = document.getElementById("mensajeDepurarListas");
+      const btnConf = document.getElementById("btnConfirmarDepuracion");
+
+      if (cant === 0) {
+        pMsg.innerHTML = `No se encontraron clientes activos ${etiquetaRegion} que cumplan simultáneamente con:<br><br>
+          • Estatus: <strong>Lista</strong><br>
+          • <strong>Fecha de envío de planillas</strong> registrada<br>
+          • Estado en HubSpot: <strong>ACTUALIZADO</strong><br><br>
+          <em>Todos los clientes en esta vista que requieren gestión o sincronización aún están pendientes.</em>`;
+        btnConf.style.display = "none";
+      } else {
+        pMsg.innerHTML = `Se identificaron <strong style="color: #991B1B; font-size: 1.05rem;">${cant} cliente(s)</strong> ${etiquetaRegion} que ya completaron su ciclo (estatus Lista, planillas enviadas y confirmados por el bot en HubSpot).<br><br>
+          Al confirmar, estos registros saldrán de la cartera activa y se trasladarán a la hoja <strong>Historico_Bajas</strong> conservando su historial completo de auditoría.`;
+        btnConf.style.display = "flex";
+        btnConf.disabled = false;
+        btnConf.textContent = `Confirmar y Archivar (${cant})`;
+      }
+
+      document.getElementById("modalDepurarListas").style.display = "flex";
+    }
+
+    function ejecutarDepuracionConfirmada() {
+      const btnConf = document.getElementById("btnConfirmarDepuracion");
+      if (btnConf) {
+        btnConf.disabled = true;
+        btnConf.textContent = "Archivando...";
+      }
+
+      mostrarToast("Depurando y archivando en Historico_Bajas...", "clock");
+
+      google.script.run
+        .withFailureHandler(err => {
+          if (btnConf) {
+            btnConf.disabled = false;
+            btnConf.textContent = "Confirmar y Archivar";
+          }
+          ocultarToast();
+          document.getElementById("modalDepurarListas").style.display = "none";
+          mostrarAlertaModal("Error al depurar cartera: " + err.message, "Error en Depuración");
+        })
+        .withSuccessHandler(res => {
+          if (btnConf) {
+            btnConf.disabled = false;
+            btnConf.textContent = "Confirmar y Archivar";
+          }
+          document.getElementById("modalDepurarListas").style.display = "none";
+          ocultarToast();
+          mostrarToast(res && res.mensaje ? res.mensaje : "Clientes depurados exitosamente", "check");
+
+          // Recargar la cartera administrativa completa
+          cargarPanelAdministrador();
+        })
+        .depurarClientesListos(regionesAdminSeleccionadas);
     }
 
     function exportarExcel(tipo) {
