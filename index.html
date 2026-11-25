@@ -1826,7 +1826,7 @@
         claseBadge = "hs-por-actualizar";
       } else if (estUpper.includes("ACTUALIZADO")) {
         claseBadge = "hs-actualizado";
-      } else if (estUpper.includes("AVANZADO")) {
+      } else if (estUpper.includes("AVANZADO") || estUpper.includes("SINCRONIZADO")) {
         claseBadge = "hs-avanzado";
       } else if (estUpper.includes("NO EXISTE")) {
         claseBadge = "hs-no-existe";
@@ -2749,7 +2749,7 @@
         const hs = String(c.estadoHubspot || "").trim().toUpperCase();
         const esLista = est.includes("lista");
         const tieneFechaEnvio = Boolean(fEnv && fEnv !== "--");
-        const esHubspotValido = hs !== "POR ACTUALIZAR" && (hs.includes("ACTUALIZADO") || hs.includes("AVANZADO"));
+        const esHubspotValido = hs !== "POR ACTUALIZAR" && (hs.includes("ACTUALIZADO") || hs.includes("AVANZADO") || hs.includes("SINCRONIZADO"));
         return esLista && tieneFechaEnvio && esHubspotValido;
       });
 

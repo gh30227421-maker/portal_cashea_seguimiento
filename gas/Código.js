@@ -340,6 +340,107 @@ function apiObtenerLote(regionFiltro, estatusFiltro, estadoHubspotFiltro) {
   };
 }
 
+/**
+ * Mapea cualquier variante de estatus proveniente de HubSpot al nombre canónico exacto
+ * que utiliza el Portal Web (Lista, Gestión de Contacto, Faltan Recaudos, No Procede, Ilocalizable).
+ */
+function mapearEstatusHubspotAPortal(estatusRaw) {
+  const raw = String(estatusRaw || "").trim();
+  if (!raw) return "";
+
+  const norm = raw
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (
+    norm === "listo" ||
+    norm === "lista" ||
+    norm === "listos" ||
+    norm === "listas" ||
+    norm.includes("cuenta abierta") ||
+    norm.includes("aperturada") ||
+    norm.includes("planilla enviada") ||
+    norm.includes("completad") ||
+    norm.includes("cerrado ganado")
+  ) {
+    return "Lista";
+  }
+
+  if (norm.includes("recaudo") || norm.includes("documentacion pendiente") || norm.includes("documento")) {
+    return "Faltan Recaudos";
+  }
+
+  if (
+    norm.includes("gestion") ||
+    norm.includes("apertura") ||
+    norm.includes("contactad") ||
+    norm.includes("en contacto") ||
+    norm.includes("en proceso") ||
+    norm.includes("seguimiento")
+  ) {
+    return "Gestión de Contacto";
+  }
+
+  if (
+    norm.includes("no procede") ||
+    norm.includes("no califica") ||
+    norm.includes("rechazad") ||
+    norm.includes("descartad") ||
+    norm.includes("cerrado perdido")
+  ) {
+    return "No Procede";
+  }
+
+  if (
+    norm.includes("ilocalizable") ||
+    norm.includes("no localizable") ||
+    norm.includes("no contesta") ||
+    norm.includes("numero errado")
+  ) {
+    return "Ilocalizable";
+  }
+
+  return raw;
+}
+
+/**
+ * Valida y convierte fechas provenientes de HubSpot (ej: "20/11/2026" o "2026-11-20")
+ * al formato estándar YYYY-MM-DD de la hoja y del portal web.
+ */
+function normalizarFechaHubspotASheets(fechaRaw, tz) {
+  if (!fechaRaw) return "";
+  if (fechaRaw instanceof Date && !isNaN(fechaRaw.getTime())) {
+    return Utilities.formatDate(fechaRaw, tz, "yyyy-MM-dd");
+  }
+  const s = String(fechaRaw).trim();
+  if (!s || s === "--") return "";
+
+  const mYMD = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (mYMD) {
+    const yyyy = Number(mYMD[1]);
+    const mm = Number(mYMD[2]);
+    const dd = Number(mYMD[3]);
+    if (yyyy >= 2000 && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+      return `${String(yyyy)}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+    }
+  }
+
+  const mDMY = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (mDMY) {
+    const dd = Number(mDMY[1]);
+    const mm = Number(mDMY[2]);
+    const yyyy = Number(mDMY[3]);
+    if (yyyy >= 2000 && mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+      return `${String(yyyy)}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+    }
+  }
+
+  return "";
+}
+
 function apiReportarResultados(resultados) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -348,29 +449,89 @@ function apiReportarResultados(resultados) {
     const sheet = obtenerHojaBD();
     asegurarColumnas(sheet);
     const datos = sheet.getDataRange().getValues();
+    const tz = Session.getScriptTimeZone() || "America/Caracas";
     const marcaTiempo = obtenerMarcaTemporalActual();
     const filasParaBaja = [];
     const filasValoresBajas = [];
     let actualizadosReales = 0;
+    let sincronizadosDesdeHubspot = 0;
 
     resultados.forEach(item => {
       const filaReal = resolverFilaSegura(datos, item.fila, item.rif, item.empresa);
       if (filaReal <= 1 || filaReal > datos.length) return;
 
-      const estadoHubspot = String(item.estado_hubspot || "ACTUALIZADO").trim();
-      const estatusFinal = String(item.estatus_final || "").trim();
+      // 1. Manejo de desmarcar_fuera_de_zona (si el bot reubicó o validó zona en HubSpot)
+      if (Boolean(item.desmarcar_fuera_de_zona)) {
+        sheet.getRange(filaReal, 13).setValue("");
+        datos[filaReal - 1][12] = "";
 
-      sheet.getRange(filaReal, 11, 1, 2).setValues([[estadoHubspot, marcaTiempo]]);
-      datos[filaReal - 1][10] = estadoHubspot;
-      datos[filaReal - 1][11] = marcaTiempo;
-
-      if (estatusFinal) {
-        sheet.getRange(filaReal, 8).setValue(estatusFinal);
-        datos[filaReal - 1][7] = estatusFinal;
+        const comConTag = String(datos[filaReal - 1][9] || "");
+        if (/\[FUERA DE ZONA\]/i.test(comConTag)) {
+          const comLimpioFdz = comConTag.replace(/\[FUERA DE ZONA\]\s*/gi, "").trim();
+          sheet.getRange(filaReal, 10).setValue(comLimpioFdz);
+          datos[filaReal - 1][9] = comLimpioFdz;
+        }
       }
 
-      actualizadosReales++;
+      // 2. Sincronización Bidireccional (HubSpot -> Google Sheets) cuando HubSpot está más avanzado
+      if (Boolean(item.actualizar_en_sheets)) {
+        const estatusSync = mapearEstatusHubspotAPortal(item.estatus_hubspot_real || item.estatus_final);
+        if (estatusSync) {
+          sheet.getRange(filaReal, 8).setValue(estatusSync);
+          datos[filaReal - 1][7] = estatusSync;
+        }
 
+        // Rellenar Fecha Envío Planillas (Col 9) solo si está vacía y HubSpot envía una fecha válida
+        const valorFechaActual = datos[filaReal - 1][8];
+        const textoFechaActual = formatearFechaRapidaInput(valorFechaActual, tz) || String(valorFechaActual || "").trim();
+        const celdaFechaVacia = (!textoFechaActual || textoFechaActual === "--");
+        const fechaHubspotNormalizada = normalizarFechaHubspotASheets(item.fecha_hubspot, tz);
+
+        if (celdaFechaVacia && fechaHubspotNormalizada) {
+          sheet.getRange(filaReal, 9).setValue(fechaHubspotNormalizada);
+          datos[filaReal - 1][8] = fechaHubspotNormalizada;
+        }
+
+        // Rellenar Comentarios (Col 10) solo si está vacía (nunca sobrescribe notas previas de agencia)
+        const notaHubspot = String(item.nota_hubspot || "").trim();
+        const comentarioActual = String(datos[filaReal - 1][9] || "").trim();
+        if (notaHubspot && (comentarioActual === "" || comentarioActual === "--")) {
+          sheet.getRange(filaReal, 10).setValue(notaHubspot);
+          datos[filaReal - 1][9] = notaHubspot;
+        }
+
+        // Registrar estado del bot en Col 11 y marca de tiempo en Col 12
+        const estadoSync = "SINCRONIZADO DESDE HUBSPOT";
+        sheet.getRange(filaReal, 11, 1, 2).setValues([[estadoSync, marcaTiempo]]);
+        datos[filaReal - 1][10] = estadoSync;
+        datos[filaReal - 1][11] = marcaTiempo;
+
+        // Si nadie había gestionado la fila aún en el portal, dejar constancia en Gestionado Por (Col 15)
+        if (!String(datos[filaReal - 1][14] || "").trim()) {
+          sheet.getRange(filaReal, 15).setValue("Sync HubSpot");
+          datos[filaReal - 1][14] = "Sync HubSpot";
+        }
+
+        sincronizadosDesdeHubspot++;
+        actualizadosReales++;
+      } else {
+        // 3. Flujo estándar existente (ACTUALIZADO, NO EXISTE CLIENTE, YA ESTABA AVANZADO, etc.)
+        const estadoHubspot = String(item.estado_hubspot || "ACTUALIZADO").trim();
+        const estatusFinal = item.estatus_final ? mapearEstatusHubspotAPortal(item.estatus_final) : "";
+
+        sheet.getRange(filaReal, 11, 1, 2).setValues([[estadoHubspot, marcaTiempo]]);
+        datos[filaReal - 1][10] = estadoHubspot;
+        datos[filaReal - 1][11] = marcaTiempo;
+
+        if (estatusFinal) {
+          sheet.getRange(filaReal, 8).setValue(estatusFinal);
+          datos[filaReal - 1][7] = estatusFinal;
+        }
+
+        actualizadosReales++;
+      }
+
+      // 4. Evaluación de baja automática (es_baja, No Procede o Ilocalizable)
       const estatusEval = String(datos[filaReal - 1][7] || "").trim().toLowerCase();
       const requiereBaja = Boolean(item.es_baja) || estatusEval === "no procede" || estatusEval === "ilocalizable";
 
@@ -391,8 +552,9 @@ function apiReportarResultados(resultados) {
 
     return {
       status: "success",
-      mensaje: "Filas actualizadas y bajas procesadas correctamente",
+      mensaje: "Filas actualizadas, sincronizaciones y bajas procesadas correctamente",
       actualizados: actualizadosReales,
+      sincronizados_hubspot: sincronizadosDesdeHubspot,
       bajas_ejecutadas: filasParaBaja.length
     };
   } finally {
@@ -697,7 +859,11 @@ function depurarClientesListos(regionesSeleccionadas, usuarioAccion, pinAdmin) {
 
       const esLista = estatus.includes("lista");
       const tieneFechaEnvio = Boolean(fechaEnvioStr && fechaEnvioStr !== "--");
-      const esHubspotValido = estadoHubspot !== "POR ACTUALIZAR" && (estadoHubspot.includes("ACTUALIZADO") || estadoHubspot.includes("AVANZADO"));
+      const esHubspotValido = estadoHubspot !== "POR ACTUALIZAR" && (
+        estadoHubspot.includes("ACTUALIZADO") ||
+        estadoHubspot.includes("AVANZADO") ||
+        estadoHubspot.includes("SINCRONIZADO")
+      );
 
       if (esLista && tieneFechaEnvio && esHubspotValido) {
         filasParaArchivar.push({
